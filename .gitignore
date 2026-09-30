@@ -1,0 +1,23 @@
+node_modules/
+dist/
+.env
+*.log
+.DS_Store
+
+# Kit de testing de otro proyecto (Keybidigital): solo local
+Skills/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+
+# Playwright
+.auth/
+test-results/
+playwright-report/
+blob-report/
+.playwright-cli/

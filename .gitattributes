@@ -1,0 +1,6 @@
+# Los archivos se montan en contenedores Linux: siempre LF, también en Windows
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.pdf binary
+*.docx binary
