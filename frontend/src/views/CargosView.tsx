@@ -1,104 +1,292 @@
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, ListChecks, Loader2 } from 'lucide-react'
+import { Plus, Trash2, Loader2, Settings, Users, Star } from 'lucide-react'
 import { toast } from 'sonner'
-import { Card, CardBody } from '@/components/common/Card'
+import { Card } from '@/components/common/Card'
 import { Badge } from '@/components/common/Badge'
 import { Modal } from '@/components/common/Modal'
+import { GestionCatalogoModal } from '@/components/catalogo/GestionCatalogoModal'
+import { SelectorCompetencias } from '@/components/catalogo/SelectorCompetencias'
+import { BarraExperiencia } from '@/components/catalogo/BarraExperiencia'
 import { useDataStore } from '@/store/dataStore'
 import { ApiError } from '@/lib/apiClient'
-import type { TipoRespuesta } from '@/types'
+import {
+  EXPERIENCIA_TRAMOS,
+  type Cargo,
+  type CatalogoItem,
+  type CatalogoTipo,
+  type CompetenciaDelCargo,
+  type EstadoEducacion,
+  type ExperienciaRequerida,
+} from '@/types'
 
-const TIPO_LABELS: Record<TipoRespuesta, string> = {
-  multiple: 'Selección múltiple',
-  unica: 'Opción única',
-  texto: 'Texto libre',
-  numero: 'Numérico',
-  booleano: 'Sí / No',
+const CATALOGO_TITULOS: Record<CatalogoTipo, string> = {
+  'nombres-cargo': 'nombres de cargo',
+  clasificaciones: 'clasificaciones',
+  'niveles-educacion': 'niveles de educación',
+  titulos: 'títulos',
+  'areas-academicas': 'áreas académicas',
+}
+
+/** Las actividades se reordenan al marcar favoritas, así que cada fila necesita una clave
+ *  estable: con el índice, React reutilizaría el cuadro de texto equivocado. */
+interface ActividadForm {
+  id: string
+  texto: string
+  favorita: boolean
+}
+
+function actividadNueva(): ActividadForm {
+  return { id: crypto.randomUUID(), texto: '', favorita: false }
+}
+
+/** Vuelca un cargo existente al formulario. Las actividades reciben su `id` local. */
+function formDesdeCargo(cargo: Cargo) {
+  return {
+    nombre_id: cargo.nombre_id as number | null,
+    tiene_personal_a_cargo: cargo.tiene_personal_a_cargo,
+    clasificacion_id: cargo.clasificacion_id,
+    mision: cargo.mision ?? '',
+    actividades:
+      cargo.actividades.length > 0
+        ? cargo.actividades.map((a) => ({ id: crypto.randomUUID(), texto: a.texto, favorita: a.favorita }))
+        : [actividadNueva()],
+    nivel_educacion_id: cargo.nivel_educacion_id,
+    estado_educacion: (cargo.estado_educacion ?? 'completa') as EstadoEducacion,
+    titulo_id: cargo.titulo_id,
+    area_academica_id: cargo.area_academica_id,
+    experiencia_requerida: cargo.experiencia_requerida,
+    competencias: cargo.competencias,
+  }
+}
+
+const FORM_VACIO = {
+  nombre_id: null as number | null,
+  tiene_personal_a_cargo: false,
+  clasificacion_id: null as number | null,
+  mision: '',
+  actividades: [actividadNueva()] as ActividadForm[],
+  nivel_educacion_id: null as number | null,
+  estado_educacion: 'completa' as EstadoEducacion,
+  titulo_id: null as number | null,
+  area_academica_id: null as number | null,
+  experiencia_requerida: null as ExperienciaRequerida | null,
+  competencias: [] as CompetenciaDelCargo[],
 }
 
 function errorMessage(err: unknown): string {
   return err instanceof ApiError ? err.message : 'Ocurrió un error inesperado'
 }
 
-export function CargosView() {
-  const { cargos, preguntasPorCargo, fetchCargos, createCargo, toggleCargoActivo, fetchPreguntas, addPregunta, removePregunta } =
-    useDataStore()
-  const [loading, setLoading] = useState(true)
-  const [showNewCargo, setShowNewCargo] = useState(false)
-  const [preguntasCargoId, setPreguntasCargoId] = useState<number | null>(null)
+/** Cabecera numerada de cada bloque del formulario. */
+function Seccion({ numero, titulo, children }: { numero: number; titulo: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-600 text-xs font-semibold text-white">
+          {numero}
+        </span>
+        <h3 className="text-sm font-semibold text-slate-800">{titulo}</h3>
+      </div>
+      {children}
+    </section>
+  )
+}
 
-  const [form, setForm] = useState({ nombre: '', departamento: '', descripcion: '' })
-  const [preguntaForm, setPreguntaForm] = useState({ pregunta: '', tipo_respuesta: 'texto' as TipoRespuesta, es_eliminatoria: false })
+/** Selector alimentado por un catálogo, con el engranaje que lo gestiona al lado. */
+function SelectorDeCatalogo({
+  label,
+  requerido,
+  valor,
+  onChange,
+  items,
+  onGestionar,
+}: {
+  label: string
+  requerido?: boolean
+  valor: number | null
+  onChange: (id: number | null) => void
+  items: CatalogoItem[]
+  onGestionar: () => void
+}) {
+  // Un elemento desactivado se sigue mostrando si es el que está seleccionado,
+  // para no vaciar el campo en silencio.
+  const visibles = items.filter((i) => i.activo || i.id === valor)
+
+  return (
+    <div>
+      <label className="mb-1 block text-sm font-medium text-slate-700">
+        {label} {requerido && <span className="text-red-500">*</span>}
+      </label>
+      <div className="flex gap-2">
+        <select
+          required={requerido}
+          value={valor ?? ''}
+          onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
+          className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+        >
+          <option value="">Selecciona...</option>
+          {visibles.map((i) => (
+            <option key={i.id} value={i.id}>
+              {i.nombre}
+              {!i.activo ? ' (inactivo)' : ''}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={onGestionar}
+          title={`Gestionar ${label.toLowerCase()}`}
+          className="shrink-0 rounded-lg border border-slate-300 px-3 text-slate-500 transition-colors hover:bg-slate-50 hover:text-brand-600"
+        >
+          <Settings size={16} />
+        </button>
+      </div>
+      {visibles.length === 0 && (
+        <p className="mt-1 text-xs text-amber-600">
+          No hay opciones todavía: usa el engranaje para crear la primera.
+        </p>
+      )}
+    </div>
+  )
+}
+
+export function CargosView() {
+  const { cargos, catalogos, fetchCargos, fetchCatalogo, createCargo, updateCargo, toggleCargoActivo } =
+    useDataStore()
+
+  const [loading, setLoading] = useState(true)
+  const [guardando, setGuardando] = useState(false)
+  const [showNewCargo, setShowNewCargo] = useState(false)
+  /** Cargo que se está editando; `null` cuando el modal crea uno nuevo. */
+  const [cargoEnEdicion, setCargoEnEdicion] = useState<Cargo | null>(null)
+  const [gestionando, setGestionando] = useState<CatalogoTipo | null>(null)
+  /** Cargo cuyo estado se va a cambiar, a la espera de confirmación. */
+  const [cargoAConfirmar, setCargoAConfirmar] = useState<Cargo | null>(null)
+  const [cambiandoEstado, setCambiandoEstado] = useState(false)
+
+  const [form, setForm] = useState(FORM_VACIO)
 
   useEffect(() => {
-    fetchCargos()
+    Promise.all([
+      fetchCargos(),
+      fetchCatalogo('nombres-cargo'),
+      fetchCatalogo('clasificaciones'),
+      fetchCatalogo('niveles-educacion'),
+      fetchCatalogo('titulos'),
+      fetchCatalogo('areas-academicas'),
+    ])
       .catch((err) => toast.error(errorMessage(err)))
       .finally(() => setLoading(false))
-  }, [fetchCargos])
+  }, [fetchCargos, fetchCatalogo])
 
   async function handleCreateCargo(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.nombre.trim()) return
+    if (!form.nombre_id) {
+      toast.error('Elige el nombre del cargo')
+      return
+    }
+    setGuardando(true)
+    const datos = {
+      nombre_id: form.nombre_id,
+      tiene_personal_a_cargo: form.tiene_personal_a_cargo,
+      clasificacion_id: form.clasificacion_id,
+      mision: form.mision.trim() || null,
+      // El `id` local no viaja: solo sirve para que React identifique cada fila.
+      actividades: form.actividades.map(({ texto, favorita }) => ({ texto, favorita })),
+      nivel_educacion_id: form.nivel_educacion_id,
+      // El estado solo tiene sentido si hay nivel elegido.
+      estado_educacion: form.nivel_educacion_id ? form.estado_educacion : null,
+      titulo_id: form.titulo_id,
+      area_academica_id: form.area_academica_id,
+      experiencia_requerida: form.experiencia_requerida,
+      competencias: form.competencias.map(({ competencia_id, requerido, deseado }) => ({
+        competencia_id,
+        requerido,
+        deseado,
+      })),
+    }
     try {
-      await createCargo(form)
-      toast.success('Cargo creado correctamente')
-      setForm({ nombre: '', departamento: '', descripcion: '' })
+      if (cargoEnEdicion) {
+        await updateCargo(cargoEnEdicion.id, datos)
+        toast.success('Cargo actualizado')
+      } else {
+        await createCargo(datos)
+        toast.success('Cargo creado correctamente')
+      }
+      setForm(FORM_VACIO)
+      setCargoEnEdicion(null)
       setShowNewCargo(false)
     } catch (err) {
       toast.error(errorMessage(err))
+    } finally {
+      setGuardando(false)
     }
   }
 
-  async function handleOpenPreguntas(cargoId: number) {
-    setPreguntasCargoId(cargoId)
+  function cambiarActividad(id: string, texto: string) {
+    setForm((f) => ({
+      ...f,
+      actividades: f.actividades.map((a) => (a.id === id ? { ...a, texto } : a)),
+    }))
+  }
+
+  /** Marcar como favorita sube la actividad al principio; desmarcarla la devuelve abajo. */
+  function alternarFavorita(id: string) {
+    setForm((f) => {
+      const cambiadas = f.actividades.map((a) => (a.id === id ? { ...a, favorita: !a.favorita } : a))
+      // `sort` de JavaScript es estable: dentro de cada grupo se conserva el orden actual.
+      return { ...f, actividades: [...cambiadas].sort((a, b) => Number(b.favorita) - Number(a.favorita)) }
+    })
+  }
+
+  function agregarActividad() {
+    setForm((f) => ({ ...f, actividades: [...f.actividades, actividadNueva()] }))
+  }
+
+  function quitarActividad(id: string) {
+    setForm((f) => {
+      const restantes = f.actividades.filter((a) => a.id !== id)
+      return { ...f, actividades: restantes.length > 0 ? restantes : [actividadNueva()] }
+    })
+  }
+
+  function abrirNuevo() {
+    setCargoEnEdicion(null)
+    setForm(FORM_VACIO)
+    setShowNewCargo(true)
+  }
+
+  function abrirEdicion(cargo: Cargo) {
+    setCargoEnEdicion(cargo)
+    setForm(formDesdeCargo(cargo))
+    setShowNewCargo(true)
+  }
+
+  async function confirmarCambioDeEstado() {
+    if (!cargoAConfirmar) return
+    setCambiandoEstado(true)
     try {
-      await fetchPreguntas(cargoId)
+      await toggleCargoActivo(cargoAConfirmar.id)
+      toast.success(cargoAConfirmar.activo ? 'Cargo desactivado' : 'Cargo activado')
+      setCargoAConfirmar(null)
     } catch (err) {
       toast.error(errorMessage(err))
+    } finally {
+      setCambiandoEstado(false)
     }
   }
-
-  async function handleAddPregunta(e: React.FormEvent) {
-    e.preventDefault()
-    if (!preguntasCargoId || !preguntaForm.pregunta.trim()) return
-    try {
-      await addPregunta(preguntasCargoId, preguntaForm)
-      toast.success('Pregunta filtro agregada')
-      setPreguntaForm({ pregunta: '', tipo_respuesta: 'texto', es_eliminatoria: false })
-    } catch (err) {
-      toast.error(errorMessage(err))
-    }
-  }
-
-  async function handleToggleActivo(id: number) {
-    try {
-      await toggleCargoActivo(id)
-    } catch (err) {
-      toast.error(errorMessage(err))
-    }
-  }
-
-  async function handleRemovePregunta(preguntaId: number) {
-    if (!preguntasCargoId) return
-    try {
-      await removePregunta(preguntasCargoId, preguntaId)
-    } catch (err) {
-      toast.error(errorMessage(err))
-    }
-  }
-
-  const cargoActivo = cargos.find((c) => c.id === preguntasCargoId)
-  const preguntasDelCargo = preguntasCargoId ? preguntasPorCargo[preguntasCargoId] ?? [] : []
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Cargos</h1>
-          <p className="text-sm text-slate-500">Catálogo de cargos y preguntas filtro asociadas</p>
+          <p className="text-sm text-slate-500">
+            Descriptivos de puesto. Pulsa el estado de un cargo para activarlo o desactivarlo.
+          </p>
         </div>
         <button
-          onClick={() => setShowNewCargo(true)}
+          onClick={abrirNuevo}
           className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
         >
           <Plus size={16} /> Nuevo Cargo
@@ -112,124 +300,320 @@ export function CargosView() {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {cargos.map((cargo) => (
-            <Card key={cargo.id} className="flex flex-col justify-between p-4">
+            <Card
+              key={cargo.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => abrirEdicion(cargo)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  abrirEdicion(cargo)
+                }
+              }}
+              title="Abrir para ver o modificar este cargo"
+              className="flex cursor-pointer flex-col justify-between p-4 transition-shadow hover:border-brand-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-brand-400"
+            >
               <div>
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="font-medium text-slate-900">{cargo.nombre}</h3>
-                  <Badge tone={cargo.activo ? 'green' : 'slate'}>{cargo.activo ? 'Activo' : 'Inactivo'}</Badge>
+                  {/* El estado es el interruptor: se pulsa y se confirma. `stopPropagation`
+                      evita que el clic abra además el modal de edición de la tarjeta. */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setCargoAConfirmar(cargo)
+                    }}
+                    title={cargo.activo ? 'Pulsa para desactivar este cargo' : 'Pulsa para activar este cargo'}
+                    className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                      cargo.activo
+                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    {cargo.activo ? 'Activo' : 'Inactivo'}
+                  </button>
                 </div>
-                <p className="mt-1 text-xs text-slate-500">{cargo.departamento}</p>
-                <p className="mt-2 text-sm text-slate-600">{cargo.descripcion}</p>
-              </div>
-              <div className="mt-4 flex gap-2">
-                <button
-                  onClick={() => handleOpenPreguntas(cargo.id)}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                >
-                  <ListChecks size={14} /> Preguntas
-                </button>
-                <button
-                  onClick={() => handleToggleActivo(cargo.id)}
-                  className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                >
-                  {cargo.activo ? 'Desactivar' : 'Activar'}
-                </button>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  {cargo.clasificacion && <Badge tone="slate">{cargo.clasificacion}</Badge>}
+                  {cargo.tiene_personal_a_cargo && (
+                    <Badge tone="purple">
+                      <Users size={11} className="mr-1 inline" />
+                      Personal a cargo
+                    </Badge>
+                  )}
+                </div>
+                {cargo.mision && <p className="mt-2 line-clamp-3 text-sm text-slate-600">{cargo.mision}</p>}
+                <p className="mt-2 text-xs text-slate-400">
+                  {cargo.actividades.length} actividad{cargo.actividades.length === 1 ? '' : 'es'}
+                  {cargo.competencias.length > 0 && ` · ${cargo.competencias.length} competencias`}
+                  {cargo.experiencia_requerida &&
+                    ` · ${EXPERIENCIA_TRAMOS.find((t) => t.valor === cargo.experiencia_requerida)?.etiqueta}`}
+                </p>
               </div>
             </Card>
           ))}
         </div>
       )}
 
-      <Modal open={showNewCargo} onClose={() => setShowNewCargo(false)} title="Nuevo Cargo">
-        <form onSubmit={handleCreateCargo} className="space-y-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Nombre del cargo</label>
-            <input
-              required
-              value={form.nombre}
-              onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-              placeholder="Ej. Desarrollador Frontend"
+      {/* ---------- Nuevo cargo ---------- */}
+      <Modal
+        open={showNewCargo}
+        onClose={() => {
+          setShowNewCargo(false)
+          setCargoEnEdicion(null)
+        }}
+        title={cargoEnEdicion ? `Editar: ${cargoEnEdicion.nombre}` : 'Nuevo Cargo'}
+        wide
+      >
+        <form onSubmit={handleCreateCargo} className="space-y-6">
+          <Seccion numero={1} titulo="Identificación del puesto">
+            <SelectorDeCatalogo
+              label="Nombre del cargo"
+              requerido
+              valor={form.nombre_id}
+              onChange={(id) => setForm({ ...form, nombre_id: id })}
+              items={catalogos['nombres-cargo']}
+              onGestionar={() => setGestionando('nombres-cargo')}
             />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Departamento</label>
-            <input
-              required
-              value={form.departamento}
-              onChange={(e) => setForm({ ...form, departamento: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-              placeholder="Ej. Tecnología"
+
+            <label className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-slate-200 px-3 py-2.5">
+              <input
+                type="checkbox"
+                checked={form.tiene_personal_a_cargo}
+                onChange={(e) => setForm({ ...form, tiene_personal_a_cargo: e.target.checked })}
+                className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+              />
+              <span className="text-sm text-slate-700">¿Tiene personal a cargo?</span>
+            </label>
+
+            <SelectorDeCatalogo
+              label="Clasificación"
+              valor={form.clasificacion_id}
+              onChange={(id) => setForm({ ...form, clasificacion_id: id })}
+              items={catalogos.clasificaciones}
+              onGestionar={() => setGestionando('clasificaciones')}
             />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Descripción</label>
+          </Seccion>
+
+          <Seccion numero={2} titulo="Misión del cargo">
             <textarea
-              value={form.descripcion}
-              onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
-              rows={3}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              value={form.mision}
+              onChange={(e) => setForm({ ...form, mision: e.target.value })}
+              rows={5}
+              placeholder="¿Para qué existe este puesto? Describe en pocas líneas su propósito dentro de la organización."
+              className="w-full resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
-          </div>
-          <button type="submit" className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-medium text-white hover:bg-brand-700">
-            Crear Cargo
+          </Seccion>
+
+          <Seccion numero={3} titulo="Actividades del cargo">
+            <div className="overflow-hidden rounded-lg border border-slate-300">
+              {form.actividades.map((actividad, i) => (
+                <div
+                  key={actividad.id}
+                  className={`flex items-stretch border-b border-slate-200 last:border-b-0 ${
+                    actividad.favorita ? 'bg-amber-50/60' : ''
+                  }`}
+                >
+                  <span className="flex w-9 shrink-0 justify-center bg-slate-50 pt-2.5 text-xs font-semibold text-slate-400">
+                    {i + 1}
+                  </span>
+                  <textarea
+                    value={actividad.texto}
+                    onChange={(e) => cambiarActividad(actividad.id, e.target.value)}
+                    rows={2}
+                    placeholder="Describe la actividad..."
+                    className="min-w-0 flex-1 resize-y border-0 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-inset focus:ring-brand-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => alternarFavorita(actividad.id)}
+                    title={actividad.favorita ? 'Quitar de destacadas' : 'Destacar: sube al principio'}
+                    aria-pressed={actividad.favorita}
+                    className={`shrink-0 px-2.5 transition-colors ${
+                      actividad.favorita
+                        ? 'text-amber-500 hover:text-amber-600'
+                        : 'text-slate-300 hover:bg-amber-50 hover:text-amber-500'
+                    }`}
+                  >
+                    <Star size={15} fill={actividad.favorita ? 'currentColor' : 'none'} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => quitarActividad(actividad.id)}
+                    title="Quitar actividad"
+                    className="shrink-0 px-3 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={agregarActividad}
+                className="flex w-full items-center justify-center gap-1.5 border-t border-dashed border-slate-300 bg-slate-50 py-2.5 text-xs font-medium text-brand-600 transition-colors hover:bg-brand-50"
+              >
+                <Plus size={14} /> Agregar actividad
+              </button>
+            </div>
+            <p className="text-xs text-slate-400">
+              La estrella destaca una actividad y la sube al principio. Las vacías no se guardan:
+              puedes dejar filas de sobra sin problema.
+            </p>
+          </Seccion>
+
+          <Seccion numero={4} titulo="Educación formal requerida">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]">
+              <SelectorDeCatalogo
+                label="Nivel de educación formal"
+                valor={form.nivel_educacion_id}
+                onChange={(id) => setForm({ ...form, nivel_educacion_id: id })}
+                items={catalogos['niveles-educacion']}
+                onGestionar={() => setGestionando('niveles-educacion')}
+              />
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Estado</label>
+                <div className="flex overflow-hidden rounded-lg border border-slate-300">
+                  {(['completa', 'en_curso'] as EstadoEducacion[]).map((estado) => (
+                    <button
+                      key={estado}
+                      type="button"
+                      onClick={() => setForm({ ...form, estado_educacion: estado })}
+                      className={`px-4 py-2 text-xs font-medium transition-colors ${
+                        form.estado_educacion === estado
+                          ? 'bg-brand-600 text-white'
+                          : 'bg-white text-slate-500 hover:bg-slate-50'
+                      }`}
+                    >
+                      {estado === 'completa' ? 'Completa' : 'En curso'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <SelectorDeCatalogo
+              label="Título requerido"
+              valor={form.titulo_id}
+              onChange={(id) => setForm({ ...form, titulo_id: id })}
+              items={catalogos.titulos}
+              onGestionar={() => setGestionando('titulos')}
+            />
+
+            <SelectorDeCatalogo
+              label="Área académica de especialización"
+              valor={form.area_academica_id}
+              onChange={(id) => setForm({ ...form, area_academica_id: id })}
+              items={catalogos['areas-academicas']}
+              onGestionar={() => setGestionando('areas-academicas')}
+            />
+          </Seccion>
+
+          <Seccion numero={5} titulo="Formación">
+            <SelectorCompetencias
+              tipo="academico"
+              etiqueta="Conocimientos académicos"
+              placeholder="Ej. Contabilidad de costos, SQL, Normas NIIF..."
+              seleccionadas={form.competencias.filter((c) => c.tipo === 'academico')}
+              onChange={(academicos) =>
+                setForm((f) => ({
+                  ...f,
+                  competencias: [...f.competencias.filter((c) => c.tipo !== 'academico'), ...academicos],
+                }))
+              }
+            />
+          </Seccion>
+
+          <Seccion numero={6} titulo="Habilidades blandas">
+            <SelectorCompetencias
+              tipo="blanda"
+              etiqueta="Destrezas y habilidades"
+              placeholder="Ej. Trabajo en equipo, Comunicación efectiva..."
+              seleccionadas={form.competencias.filter((c) => c.tipo === 'blanda')}
+              onChange={(blandas) =>
+                setForm((f) => ({
+                  ...f,
+                  competencias: [...f.competencias.filter((c) => c.tipo !== 'blanda'), ...blandas],
+                }))
+              }
+            />
+          </Seccion>
+
+          <Seccion numero={7} titulo="Experiencia requerida">
+            <BarraExperiencia
+              valor={form.experiencia_requerida}
+              onChange={(valor) => setForm((f) => ({ ...f, experiencia_requerida: valor }))}
+            />
+          </Seccion>
+
+          <button
+            type="submit"
+            disabled={guardando}
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
+          >
+            {guardando && <Loader2 size={15} className="animate-spin" />}
+            {cargoEnEdicion ? 'Guardar cambios' : 'Crear Cargo'}
           </button>
         </form>
       </Modal>
 
-      <Modal open={preguntasCargoId !== null} onClose={() => setPreguntasCargoId(null)} title={`Preguntas filtro — ${cargoActivo?.nombre ?? ''}`} wide>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            {preguntasDelCargo.length === 0 && <p className="text-sm text-slate-400">Aún no hay preguntas para este cargo.</p>}
-            {preguntasDelCargo.map((p) => (
-              <div key={p.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 p-3">
-                <div>
-                  <p className="text-sm font-medium text-slate-800">{p.pregunta}</p>
-                  <div className="mt-1 flex gap-2">
-                    <Badge tone="blue">{TIPO_LABELS[p.tipo_respuesta]}</Badge>
-                    {p.es_eliminatoria && <Badge tone="red">Eliminatoria</Badge>}
-                  </div>
-                </div>
-                <button onClick={() => handleRemovePregunta(p.id)} className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600">
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            ))}
-          </div>
+      {/* Hermano del modal anterior, no hijo: así se dibuja encima sin pelear por el z-index. */}
+      <GestionCatalogoModal
+        tipo={gestionando ?? 'nombres-cargo'}
+        titulo={gestionando ? CATALOGO_TITULOS[gestionando] : ''}
+        abierto={gestionando !== null}
+        onClose={() => setGestionando(null)}
+        onItemCreado={(id) => {
+          // Si el campo estaba vacío, se selecciona lo recién creado.
+          if (gestionando === 'nombres-cargo' && !form.nombre_id) setForm((f) => ({ ...f, nombre_id: id }))
+          if (gestionando === 'clasificaciones' && !form.clasificacion_id)
+            setForm((f) => ({ ...f, clasificacion_id: id }))
+        }}
+      />
 
-          <form onSubmit={handleAddPregunta} className="space-y-3 border-t border-slate-100 pt-4">
-            <input
-              required
-              value={preguntaForm.pregunta}
-              onChange={(e) => setPreguntaForm({ ...preguntaForm, pregunta: e.target.value })}
-              placeholder="Escribe la pregunta filtro"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-            />
-            <div className="flex flex-wrap items-center gap-3">
-              <select
-                value={preguntaForm.tipo_respuesta}
-                onChange={(e) => setPreguntaForm({ ...preguntaForm, tipo_respuesta: e.target.value as TipoRespuesta })}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              >
-                {Object.entries(TIPO_LABELS).map(([key, label]) => (
-                  <option key={key} value={key}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-              <label className="flex items-center gap-2 text-sm text-slate-600">
-                <input
-                  type="checkbox"
-                  checked={preguntaForm.es_eliminatoria}
-                  onChange={(e) => setPreguntaForm({ ...preguntaForm, es_eliminatoria: e.target.checked })}
-                />
-                Eliminatoria (knockout)
-              </label>
-              <button type="submit" className="ml-auto flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700">
-                <Plus size={15} /> Agregar
-              </button>
-            </div>
-          </form>
+      {/* ---------- Confirmar activar / desactivar ---------- */}
+      <Modal
+        open={cargoAConfirmar !== null}
+        onClose={() => setCargoAConfirmar(null)}
+        title={cargoAConfirmar?.activo ? 'Desactivar cargo' : 'Activar cargo'}
+      >
+        <div className="space-y-5">
+          <p className="text-sm text-slate-600">
+            {cargoAConfirmar?.activo ? (
+              <>
+                ¿Seguro que quieres desactivar <strong>{cargoAConfirmar?.nombre}</strong>? Dejará de
+                ofrecerse al crear vacantes nuevas. Las vacantes que ya lo usan no se tocan.
+              </>
+            ) : (
+              <>
+                ¿Seguro que quieres activar <strong>{cargoAConfirmar?.nombre}</strong>? Volverá a
+                estar disponible al crear vacantes.
+              </>
+            )}
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setCargoAConfirmar(null)}
+              className="flex-1 rounded-lg border border-slate-300 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={confirmarCambioDeEstado}
+              disabled={cambiandoEstado}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium text-white disabled:opacity-60 ${
+                cargoAConfirmar?.activo
+                  ? 'bg-red-600 hover:bg-red-700'
+                  : 'bg-brand-600 hover:bg-brand-700'
+              }`}
+            >
+              {cambiandoEstado && <Loader2 size={15} className="animate-spin" />}
+              Sí
+            </button>
+          </div>
         </div>
       </Modal>
     </div>

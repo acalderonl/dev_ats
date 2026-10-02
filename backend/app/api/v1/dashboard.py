@@ -18,10 +18,7 @@ def obtener_metricas(db: Session = Depends(get_db), _: Usuario = Depends(get_cur
     vacantes_expiradas = db.scalar(select(func.count()).select_from(Vacante).where(Vacante.estado == "expirada")) or 0
     postulaciones_totales = db.scalar(select(func.count()).select_from(Postulacion)) or 0
     entrevistas_pendientes = (
-        db.scalar(
-            select(func.count()).select_from(Postulacion).where(Postulacion.estado_pipeline == "entrevista")
-        )
-        or 0
+        db.scalar(select(func.count()).select_from(Postulacion).where(Postulacion.estado_pipeline == "entrevista")) or 0
     )
 
     por_etapa = db.execute(

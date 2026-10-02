@@ -1,16 +1,75 @@
+"""Configuración de las pruebas.
+
+🔴 FUGA CERO: las pruebas corren contra una base propia (`ats_test_db`), nunca contra la
+de desarrollo. Antes de este archivo cada `pytest` dejaba cargos, postulantes y usuarios
+de prueba en la base real, y acababan saliendo en pantalla.
+
+El cambio de `DATABASE_URL` ocurre ANTES de importar la aplicación, porque el motor de
+SQLAlchemy se crea al importar `app.core.database`: si se importara primero, apuntaría a
+la base equivocada y ya no habría forma de cambiarlo.
+"""
+
+import os
 import uuid
 
-import pytest
-from fastapi.testclient import TestClient
+import psycopg2
 
-from app.core.database import Base, engine
-from app.main import app
-from app.seed import DEMO_USERS
+_URL_DESARROLLO = os.environ.get("DATABASE_URL", "postgresql://ats_user:ats_password@db:5432/ats_db")
+_BASE_DE_PRUEBAS = "ats_test_db"
+_RAIZ = _URL_DESARROLLO.rsplit("/", 1)[0]
+
+
+def _crear_base_de_pruebas_si_no_existe() -> None:
+    conexion = psycopg2.connect(_URL_DESARROLLO)
+    conexion.autocommit = True
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("SELECT 1 FROM pg_database WHERE datname = %s", (_BASE_DE_PRUEBAS,))
+            if cursor.fetchone() is None:
+                cursor.execute(f'CREATE DATABASE "{_BASE_DE_PRUEBAS}"')
+    finally:
+        conexion.close()
+
+
+_crear_base_de_pruebas_si_no_existe()
+os.environ["DATABASE_URL"] = f"{_RAIZ}/{_BASE_DE_PRUEBAS}"
+
+from pathlib import Path  # noqa: E402
+
+import pytest  # noqa: E402
+from alembic import command  # noqa: E402
+from alembic.config import Config  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import text  # noqa: E402
+
+from app.core.database import Base, engine  # noqa: E402
+from app.main import app  # noqa: E402
+from app.seed import DEMO_USERS  # noqa: E402
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _crear_tablas():
-    Base.metadata.create_all(bind=engine)
+def _base_limpia():
+    """Cada ejecución arranca con la base de pruebas vacía y migrada.
+
+    El esquema se construye con **las migraciones de Alembic**, no con `create_all`. Es más
+    lento, pero `create_all` solo conoce los modelos: se saltaría todo lo que vive únicamente
+    en una migración (extensiones como `pg_trgm`, índices especiales, conversiones de datos),
+    y entonces las pruebas pasarían sobre un esquema que no es el que tendrá producción.
+    """
+    if _BASE_DE_PRUEBAS not in str(engine.url):
+        raise RuntimeError(
+            f"Las pruebas apuntan a '{engine.url}', que no es la base de pruebas. "
+            "Se aborta para no borrar datos de desarrollo."
+        )
+
+    Base.metadata.drop_all(bind=engine)
+    with engine.begin() as conexion:
+        # Sin esto Alembic creería que la base ya está al día y no aplicaría nada.
+        conexion.execute(text("DROP TABLE IF EXISTS alembic_version"))
+
+    configuracion = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+    configuracion.set_main_option("sqlalchemy.url", str(engine.url))
+    command.upgrade(configuracion, "head")
     yield
 
 
@@ -23,6 +82,45 @@ def client():
 @pytest.fixture()
 def unique_suffix() -> str:
     return uuid.uuid4().hex[:8]
+
+
+@pytest.fixture()
+def crear_cargo(client: TestClient, reclutador_headers: dict[str, str]):
+    """Crea un cargo listo para usar y devuelve su JSON.
+
+    Desde la migración 0002 el nombre del cargo vive en un catálogo, así que crear un
+    cargo son dos pasos. El contrato se centraliza aquí para no repetirlo en cada prueba
+    que solo necesita un cargo de apoyo.
+    """
+
+    def _crear(sufijo: str, *, clasificacion: str | None = None, **campos):
+        respuesta_nombre = client.post(
+            "/api/v1/catalogos/nombres-cargo",
+            json={"nombre": f"Cargo Test {sufijo}"},
+            headers=reclutador_headers,
+        )
+        assert respuesta_nombre.status_code == 201, respuesta_nombre.text
+
+        clasificacion_id = None
+        if clasificacion is not None:
+            respuesta_clasificacion = client.post(
+                "/api/v1/catalogos/clasificaciones",
+                json={"nombre": f"{clasificacion} {sufijo}"},
+                headers=reclutador_headers,
+            )
+            assert respuesta_clasificacion.status_code == 201, respuesta_clasificacion.text
+            clasificacion_id = respuesta_clasificacion.json()["id"]
+
+        payload = {
+            "nombre_id": respuesta_nombre.json()["id"],
+            "clasificacion_id": clasificacion_id,
+            **campos,
+        }
+        respuesta = client.post("/api/v1/cargos", json=payload, headers=reclutador_headers)
+        assert respuesta.status_code == 201, respuesta.text
+        return respuesta.json()
+
+    return _crear
 
 
 def login(client: TestClient, email: str, password: str) -> str:

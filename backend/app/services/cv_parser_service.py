@@ -19,9 +19,7 @@ EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 PHONE_RE = re.compile(r"(?:\+?593|0)?\s?9\d{2}[\s.-]?\d{3}[\s.-]?\d{3}\b|\b0\d{9}\b")
 CEDULA_RE = re.compile(r"\b\d{10}\b")
 EDAD_RE = re.compile(r"\bedad[:\s]+(\d{1,2})\b", re.IGNORECASE)
-RANGO_FECHAS_RE = re.compile(
-    r"(\d{4})\s*[-–a]{1,3}\s*(\d{4}|actualidad|presente|actual)", re.IGNORECASE
-)
+RANGO_FECHAS_RE = re.compile(r"(\d{4})\s*[-–a]{1,3}\s*(\d{4}|actualidad|presente|actual)", re.IGNORECASE)
 
 NIVEL_KEYWORDS: list[tuple[str, str]] = [
     ("maestría", "Cuarto Nivel"),
@@ -60,6 +58,7 @@ def _guess_nombres_apellidos(lines: list[str]) -> tuple[str | None, str | None]:
             mid = max(1, len(words) // 2)
             return " ".join(words[:mid]), " ".join(words[mid:])
     return None, None
+
 
 def _guess_nivel_instruccion(text_lower: str) -> str | None:
     for keyword, nivel in NIVEL_KEYWORDS:

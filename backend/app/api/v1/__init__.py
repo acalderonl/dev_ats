@@ -1,11 +1,25 @@
 from fastapi import APIRouter
 
-from app.api.v1 import auth, cargos, contactos, dashboard, evaluaciones, postulaciones, public, usuarios, vacantes
+from app.api.v1 import (
+    auth,
+    cargos,
+    catalogos,
+    competencias,
+    contactos,
+    dashboard,
+    evaluaciones,
+    postulaciones,
+    public,
+    usuarios,
+    vacantes,
+)
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["Autenticación"])
 api_router.include_router(usuarios.router, prefix="/users", tags=["Usuarios"])
 api_router.include_router(cargos.router, prefix="/cargos", tags=["Cargos"])
+api_router.include_router(catalogos.router, prefix="/catalogos", tags=["Catálogos"])
+api_router.include_router(competencias.router, prefix="/competencias", tags=["Competencias"])
 api_router.include_router(vacantes.router, prefix="/vacantes", tags=["Vacantes"])
 api_router.include_router(public.router, prefix="/public", tags=["Portal Público"])
 api_router.include_router(postulaciones.router, prefix="/postulaciones", tags=["Pipeline"])

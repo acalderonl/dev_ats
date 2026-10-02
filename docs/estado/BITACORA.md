@@ -8,6 +8,54 @@ una funcionalidad que funcione.
 
 ---
 
+## 2026-10-02 — Día 4 · Rehacer el módulo de Cargos
+
+**Fases:** T.1 y T.1B cerradas. M1 reconstruido (fuera del mapa original: lo pidió el dueño en caliente).
+
+**Hecho**
+- **El cargo pasa a ser un descriptivo de puesto** con 7 bloques: identificación, misión, actividades,
+  educación formal, formación, habilidades blandas y experiencia.
+- Los valores repetibles salen de **catálogos con CRUD propio** (el engranaje junto a cada selector):
+  nombres de cargo, clasificaciones, niveles de educación, títulos y áreas académicas. Un solo router
+  genérico los sirve a los cinco; añadir los tres últimos fueron tres líneas.
+- **Competencias compartidas entre cargos**, con dos defensas contra duplicados: el nombre normalizado
+  (sin tildes ni mayúsculas) es único, y el buscador sugiere los parecidos con trigramas de PostgreSQL.
+  "Trabajo en equipos" encuentra "Trabajo en equipo" con 0,84 de parecido y avisa antes de crear otro.
+- Actividades con **estrella de favorita**, que sube la actividad al principio; el orden se aplica
+  también al guardar.
+- Se quitaron de las tarjetas los botones *Preguntas* y *Desactivar*. Ahora **el estado es el botón**,
+  con confirmación de Sí/Cancelar, y **la tarjeta entera abre el modal para editar**.
+- 4 migraciones (0002 a 0004) sin perder datos; `black`/`flake8` configurados al ancho real (120).
+
+**Verificado**
+- **48 pruebas en verde** (eran 19 escritas y sin correr el día 1).
+- Cada cambio comprobado **en PostgreSQL**, no en pantalla: orden de favoritas, competencias con su
+  exigencia, educación, experiencia, y que editar no duplica ni el cargo ni sus competencias.
+- Activar/desactivar con **los dos controles**: Cancelar no cambia nada; Sí sí.
+- Fuga cero: 4 cargos en desarrollo antes de la suite, 4 después.
+
+**Corregido de días anteriores**
+- Un `as const` sobre un ternario en `VacantesView.tsx` que era TypeScript inválido y venía del commit
+  inicial: bloqueaba la verificación de tipos.
+- `CLAUDE.md` documentaba `black app/`, que sin configuración habría reformateado 35 archivos de golpe.
+- La base de pruebas se construía con `create_all` (desde los modelos), así que lo que vive solo en una
+  migración —como la extensión `pg_trgm`— no existía al probar. Ahora aplica las migraciones reales.
+
+**Errores propios que conviene recordar**
+- Al borrar un bloque con PowerShell leí sin especificar codificación y destrocé todos los acentos del
+  archivo; al repararlo me precipité con un reemplazo de bytes a ciegas y lo empeoré. Es la trampa que
+  documenta la skill `testing-forense-maximo`, escrita dos días antes. **Leer siempre con `-Encoding`.**
+- Una comprobación de fuga cero dio un resultado vacío por comparar cadenas con espacios finales en vez
+  de números. El instrumento mentía, no el sistema.
+
+**Pendiente / avisos**
+- 🔴 La etapa 2 (seguridad) sigue entera abierta: el sistema no puede tocar internet.
+- 🔴 **Ya no hay forma de crear preguntas filtro** desde la aplicación (fase M1.5). El portal del
+  candidato solo verá las que creó el seed.
+- Las listas de niveles y áreas se sembraron de memoria: conviene contrastarlas con la fuente oficial.
+
+---
+
 ## 2026-10-01 — Día 3 · Organizar el trabajo
 
 **Fase:** ninguna (trabajo de organización)

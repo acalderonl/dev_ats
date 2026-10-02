@@ -82,7 +82,8 @@ export function VacantesView() {
     }
   }
 
-  const badgeTone = (estado: string) => (estado === 'activa' ? 'green' : estado === 'expirada' ? 'red' : 'slate') as const
+  const badgeTone = (estado: string): 'green' | 'red' | 'slate' =>
+    estado === 'activa' ? 'green' : estado === 'expirada' ? 'red' : 'slate'
 
   return (
     <div className="space-y-6">

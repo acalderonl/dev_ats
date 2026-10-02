@@ -42,9 +42,7 @@ def listar_contactos(
     postulante_ids = [p.id for p in postulantes]
 
     postulaciones = db.scalars(
-        select(Postulacion)
-        .where(Postulacion.postulante_id.in_(postulante_ids))
-        .order_by(Postulacion.creado_en.asc())
+        select(Postulacion).where(Postulacion.postulante_id.in_(postulante_ids)).order_by(Postulacion.creado_en.asc())
     ).all()
 
     por_postulante: dict = defaultdict(list)

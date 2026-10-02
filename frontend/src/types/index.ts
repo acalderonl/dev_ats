@@ -10,12 +10,81 @@ export interface Usuario {
   creado_en: string
 }
 
-export interface Cargo {
+export interface Actividad {
+  texto: string
+  favorita: boolean
+}
+
+/** Tramos de la barra de experiencia; el orden es el que se dibuja. */
+export type ExperienciaRequerida = 'ninguna' | 'hasta_1' | '1_a_3' | '3_a_5' | 'mas_de_5'
+
+export const EXPERIENCIA_TRAMOS: { valor: ExperienciaRequerida; etiqueta: string }[] = [
+  { valor: 'ninguna', etiqueta: '0 años' },
+  { valor: 'hasta_1', etiqueta: '1 año o menos' },
+  { valor: '1_a_3', etiqueta: '1 a 3 años' },
+  { valor: '3_a_5', etiqueta: '3 a 5 años' },
+  { valor: 'mas_de_5', etiqueta: '5 años en adelante' },
+]
+
+export type TipoCompetencia = 'academico' | 'blanda'
+
+export interface Competencia {
   id: number
   nombre: string
-  departamento: string | null
-  descripcion: string | null
+  tipo: TipoCompetencia
   activo: boolean
+  /** En cuántos cargos se usa ya: ayuda a reutilizar la establecida en vez de crear otra. */
+  usos: number
+  /** 0 a 1. Solo llega al buscar: cuánto se parece a lo escrito. */
+  similitud: number | null
+}
+
+export interface CompetenciaDelCargo {
+  competencia_id: number
+  nombre: string
+  tipo: TipoCompetencia
+  requerido: boolean
+  deseado: boolean
+}
+
+export interface Cargo {
+  id: number
+  nombre_id: number
+  nombre: string
+  tiene_personal_a_cargo: boolean
+  clasificacion_id: number | null
+  clasificacion: string | null
+  mision: string | null
+  actividades: Actividad[]
+  nivel_educacion_id: number | null
+  nivel_educacion: string | null
+  estado_educacion: EstadoEducacion | null
+  titulo_id: number | null
+  titulo: string | null
+  area_academica_id: number | null
+  area_academica: string | null
+  experiencia_requerida: ExperienciaRequerida | null
+  competencias: CompetenciaDelCargo[]
+  activo: boolean
+}
+
+/** Los catálogos que alimentan los selectores del formulario de cargo. */
+export type CatalogoTipo =
+  | 'nombres-cargo'
+  | 'clasificaciones'
+  | 'niveles-educacion'
+  | 'titulos'
+  | 'areas-academicas'
+
+/** Si el nivel de educación se exige terminado o basta con estar cursándolo. */
+export type EstadoEducacion = 'completa' | 'en_curso'
+
+export interface CatalogoItem {
+  id: number
+  nombre: string
+  activo: boolean
+  /** Si algún cargo lo usa; la UI lo necesita para no ofrecer un borrado que el backend rechaza. */
+  en_uso: boolean
 }
 
 export type TipoRespuesta = 'multiple' | 'unica' | 'texto' | 'booleano' | 'numero'

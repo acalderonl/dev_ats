@@ -15,7 +15,9 @@ class Postulacion(Base):
     vacante_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("vacantes.id"), nullable=False)
     postulante_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("postulantes.id"), nullable=False)
     respuestas_filtro: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    autorizado_por: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
+    autorizado_por: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True
+    )
     fecha_autorizacion: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     estado_pipeline: Mapped[str] = mapped_column(String(50), default="pendiente_autorizacion")
     origen: Mapped[str] = mapped_column(String(20), default="Directo")

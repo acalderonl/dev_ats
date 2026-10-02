@@ -41,9 +41,10 @@ Sin esto, ninguna fase posterior se puede dar por buena: no hay forma de saber s
 
 | Fase | Qué | Terminada cuando | Estado |
 |---|---|---|---|
-| **T.1** | Correr la suite por primera vez | `pytest` en verde y el número de pruebas anotado en la bitácora | **en curso** |
+| **T.1** | Correr la suite por primera vez | `pytest` en verde y el número de pruebas anotado en la bitácora | ✅ **hecha** (2026-10-01, 32 pruebas) |
+| **T.1B** | Las pruebas no tocan la base de desarrollo | Corren contra `ats_test_db`, construida desde las migraciones; control positivo de fuga cero | ✅ **hecha** (2026-10-01) |
 | **T.2** | Validar las pruebas por mutación | Cada prueba cae al reintroducir su defecto; el código queda idéntico (comprobado por hash) | pendiente |
-| **T.3** | Lint y type check | `black`, `flake8` y `tsc --noEmit` salen con código 0 | pendiente |
+| **T.3** | Lint y type check | `black`, `flake8` y `tsc --noEmit` salen con código 0 | 🟡 pasan hoy, falta dejarlo automático (ver T.4) |
 | **T.4** | CI en GitHub Actions | Un push abre el workflow y sale verde en GitHub, no solo en local | pendiente |
 
 # Etapa 2 — Bloqueantes de seguridad
@@ -125,6 +126,8 @@ flexible: se elige por lo que haga falta en ese momento.
 | **M1.2** | Editar y cerrar vacantes sin que cambie el slug | Vacantes |
 | **M1.3** | Definir las opciones de una pregunta de selección | Vacantes |
 | **M1.4** | LinkedIn real con credenciales | Vacantes |
+| **M1.5** | Devolver la gestión de preguntas filtro: se quitó de Cargos el 2026-10-02 y hoy **no hay forma de crearlas** desde la aplicación | Vacantes |
+| **M2.5** | Traer los títulos verificados del candidato desde EcuadorAPI por cédula, en vez de fiarse del parser del CV. Necesita API key de pago y consentimiento del candidato | Portal |
 | **M5.2** | Adjuntar documentos a una evaluación | Evaluaciones |
 | **M5.3** | Confidencialidad por rol probada (403, no solo ocultar el botón) | Evaluaciones |
 | **M2.3** | Medir el acierto del parser contra CVs reales y mejorarlo | Portal |
@@ -133,6 +136,15 @@ flexible: se elige por lo que haga falta en ese momento.
 | **M7.3** | Recuperar contraseña, probado de punta a punta | Usuarios |
 
 ---
+
+## Decisiones ya tomadas
+
+- **2026-10-01 · Destino: producción real**, cimientos primero, los 7 módulos importan. De ahí salen
+  las 6 etapas y su orden.
+- **2026-10-02 · Educación formal con catálogos propios**, no con EcuadorAPI: esa API consulta los
+  títulos de UNA persona por su cédula ("qué estudió y dónde"), no tiene catálogos de niveles ni
+  áreas, cobra por consulta y puede pedir CAPTCHA. Su sitio real es el portal del candidato (M2.5).
+- **2026-10-02 · Requerido y deseado son excluyentes** en las competencias de un cargo.
 
 ## Decisiones pendientes del dueño
 

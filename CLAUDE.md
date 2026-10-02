@@ -34,6 +34,9 @@ la imagen, salvo que cambien las dependencias (`requirements.txt` / `package.jso
 ## Backend (Python 3.12 / FastAPI / SQLAlchemy / Alembic)
 
 - **Ejecutar pruebas**: `docker compose exec backend pytest`
+  🔴 Corren contra `ats_test_db`, **nunca** contra la base de desarrollo, y la recrean desde las
+  migraciones en cada ejecución (`tests/conftest.py`). Si alguna prueba deja datos en `ats_db`, hay
+  una fuga y se arregla en la configuración, no borrando a mano.
 - **Pruebas con cobertura**: `docker compose exec backend pytest --cov=app`
 - **Generar una migración nueva**: `docker compose exec backend alembic revision --autogenerate -m "descripcion"`
 - **Aplicar migraciones manualmente**: `docker compose exec backend alembic upgrade head`
@@ -60,6 +63,20 @@ backend/app/
 en los routers en lugar de una capa `repositories/` separada (que sí se menciona en
 `docs/architecture_plan-v2.md`). Es una decisión consciente para este tamaño de proyecto,
 no una omisión.
+
+### Módulo de Cargos (el más desarrollado)
+
+Un cargo es un **descriptivo de puesto**: identificación, misión, actividades (con favoritas, que
+suben al principio), educación formal, formación, habilidades blandas y experiencia requerida.
+
+- Los valores repetibles viven en **catálogos** (`/api/v1/catalogos/{catalogo}`): nombres de cargo,
+  clasificaciones, niveles de educación, títulos y áreas académicas. Un router genérico los sirve a
+  todos; añadir uno nuevo es una entrada en el diccionario `CATALOGOS` más su tabla.
+- Las **competencias** (`/api/v1/competencias`) se comparten entre cargos. Para que no se dupliquen
+  escritas de formas distintas: `nombre_normalizado` (sin tildes ni mayúsculas) es único por tipo, y
+  la búsqueda sugiere las parecidas con trigramas (`pg_trgm`).
+- En la interfaz, la tarjeta de un cargo lo abre para editar; su estado es el botón de activar o
+  desactivar, con confirmación.
 
 ### Autenticación y roles
 

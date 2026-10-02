@@ -1,7 +1,11 @@
 from app.core.database import Base
 from app.models.rol import Rol
 from app.models.usuario import Usuario
+from app.models.nombre_cargo import NombreCargo
+from app.models.clasificacion_cargo import ClasificacionCargo
+from app.models.catalogos_educacion import AreaAcademica, NivelEducacion, TituloAcademico
 from app.models.cargo import Cargo
+from app.models.competencia import CargoCompetencia, Competencia
 from app.models.pregunta_filtro import PreguntaFiltro
 from app.models.vacante import Vacante
 from app.models.postulante import Postulante
@@ -12,7 +16,14 @@ __all__ = [
     "Base",
     "Rol",
     "Usuario",
+    "NombreCargo",
+    "ClasificacionCargo",
     "Cargo",
+    "NivelEducacion",
+    "TituloAcademico",
+    "AreaAcademica",
+    "Competencia",
+    "CargoCompetencia",
     "PreguntaFiltro",
     "Vacante",
     "Postulante",
