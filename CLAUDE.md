@@ -1,10 +1,17 @@
 # CLAUDE.md - Guía de Desarrollo del Sistema ATS
 
+## 🔴 Lo primero en cada sesión
+
+Leer **`docs/estado/ESTADO.md`**: dice la fase activa, qué módulo se está tocando y qué sigue
+sin verificar. El mapa de fases está en `docs/estado/FASES.md` y el día a día en `docs/estado/BITACORA.md`.
+Al terminar la sesión se anota el día en la bitácora y se actualiza el estado si cambió.
+
 ## Estado del proyecto
 
-Stack completo implementado: **PostgreSQL + Backend (FastAPI) + Frontend (React/Vite)**,
-todo orquestado con Docker Compose, siguiendo `docs/objetivo_general-v2.md` y
-`docs/architecture_plan-v2.md`.
+Los 7 módulos están **construidos en su versión base**: PostgreSQL + Backend (FastAPI) +
+Frontend (React/Vite) con Docker Compose, siguiendo `docs/objetivo_general-v2.md` y
+`docs/architecture_plan-v2.md`. "Construido" no es "verificado": lo comprobado de verdad, módulo
+por módulo, está en `docs/estado/ESTADO.md`.
 
 ## Comandos de Docker Compose
 
