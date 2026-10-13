@@ -44,8 +44,21 @@ una funcionalidad que funcione.
   una confirmación —desactivar un cargo, gestionar un catálogo— no debe pedir confirmación para
   cerrarse. Solo la activa el formulario de cargo.
 
+- **El modal se monta en `document.body`**, con un portal, en vez de donde se escribe. Vivía dentro
+  de `<main>`, un contenedor con scroll: bastaba que un ancestro usara `transform` o `filter` para
+  que dejara de cubrir la pantalla y quedara recortado dentro de la columna. Colgándolo del body
+  eso ya no puede pasar.
+- El fondo oscuro se quitó y se volvió a poner a petición del dueño: con tanto texto detrás, el
+  formulario no se distinguía. Se queda en `bg-slate-900/40`.
+
 **Verificado (en el navegador, con los dos controles)**
 - Con el cuerpo scrolleado hasta la sección 7, la cabecera "Nuevo Cargo" y la X seguían en su sitio.
+- El modal cuelga de `<body>` (`parentElement === document.body`, fuera de `<main>`), y
+  `elementFromPoint` sobre el menú lateral, la barra superior, el contenido y la esquina inferior
+  devuelve el modal: **nada de la aplicación queda por encima** en ningún punto de la pantalla.
+- Con el gestor de catálogo abierto encima, las dos capas cuelgan del body y la de arriba es la
+  correcta; cerrarla **no se cuela** al fondo del modal de abajo (que habría abierto la pregunta).
+- Al cerrar no queda ningún nodo suelto en el body.
 - **Control positivo**: la X abre la pregunta y el modal no se cierra; el clic fuera, igual;
   "Cancelar" vuelve al formulario intacto; "Sí, cerrar" cierra de verdad y no deja la pregunta
   en pie para la próxima apertura.
