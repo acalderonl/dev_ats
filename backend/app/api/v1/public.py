@@ -26,10 +26,17 @@ def _get_vacante_activa_or_410(db: Session, slug: str) -> Vacante:
     if fecha_limite.tzinfo is None:
         fecha_limite = fecha_limite.replace(tzinfo=timezone.utc)
 
-    if vacante.estado != "activa" or fecha_limite < datetime.now(timezone.utc):
+    if vacante.estado != "abierta" or fecha_limite < datetime.now(timezone.utc):
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail="Esta vacante ha expirado. Revisa nuestro LinkedIn para más información.",
+        )
+    # Una vacante interna no existe para el portal público, aunque esté abierta y
+    # alguien tenga el enlace: para eso se marcó interna.
+    if vacante.visibilidad == "interna":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vacante no encontrada",
         )
     return vacante
 
@@ -45,6 +52,11 @@ def obtener_vacante_publica(slug: str, db: Session = Depends(get_db)) -> Vacante
         slug=vacante.slug,
         fecha_limite=vacante.fecha_limite,
         cargo_nombre=vacante.cargo.nombre,
+        remuneracion=vacante.remuneracion,
+        hora_entrada=vacante.hora_entrada,
+        hora_salida=vacante.hora_salida,
+        tipo_contrato=vacante.tipo_contrato.nombre if vacante.tipo_contrato else None,
+        campos_personalizados=vacante.campos_personalizados or [],
         preguntas_filtro=[PreguntaFiltroOut.model_validate(p) for p in preguntas],
     )
 

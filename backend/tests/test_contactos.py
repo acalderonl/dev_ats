@@ -1,19 +1,6 @@
-from datetime import datetime, timedelta, timezone
-
-
-def test_contacto_aparece_tras_postular(client, reclutador_headers, unique_suffix, crear_cargo):
+def test_contacto_aparece_tras_postular(client, reclutador_headers, unique_suffix, crear_cargo, crear_vacante):
     cargo = crear_cargo(unique_suffix)
-    fecha = datetime.now(timezone.utc) + timedelta(days=10)
-    vacante = client.post(
-        "/api/v1/vacantes",
-        json={
-            "titulo": f"Vacante Contacto {unique_suffix}",
-            "cargo_id": cargo["id"],
-            "descripcion": "Descripción",
-            "fecha_limite": fecha.isoformat(),
-        },
-        headers=reclutador_headers,
-    ).json()
+    vacante = crear_vacante(cargo["id"])
 
     cedula = f"19{unique_suffix[:8]}"
     client.post(

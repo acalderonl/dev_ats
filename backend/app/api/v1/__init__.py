@@ -5,9 +5,11 @@ from app.api.v1 import (
     cargos,
     catalogos,
     competencias,
+    configuracion,
     contactos,
     dashboard,
     evaluaciones,
+    media,
     postulaciones,
     public,
     usuarios,
@@ -26,3 +28,5 @@ api_router.include_router(postulaciones.router, prefix="/postulaciones", tags=["
 api_router.include_router(evaluaciones.router, prefix="/postulaciones", tags=["Evaluaciones"])
 api_router.include_router(contactos.router, prefix="/contactos", tags=["Contactos"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
+api_router.include_router(configuracion.router, prefix="/configuracion", tags=["Configuración"])
+api_router.include_router(media.router, prefix="/media", tags=["Medios"])

@@ -8,7 +8,10 @@ from app.models.cargo import Cargo
 from app.models.cargo_educacion import CargoAreaAcademica, CargoNivelEducacion, CargoTitulo
 from app.models.competencia import CargoCompetencia, Competencia
 from app.models.pregunta_filtro import PreguntaFiltro
-from app.models.vacante import Vacante
+from app.models.tipo_contrato import TipoContrato
+from app.models.jornada import Jornada
+from app.models.configuracion import Configuracion
+from app.models.vacante import TokenLinkedIn, Vacante
 from app.models.postulante import Postulante
 from app.models.postulacion import Postulacion
 from app.models.evaluacion import Evaluacion
@@ -29,7 +32,11 @@ __all__ = [
     "Competencia",
     "CargoCompetencia",
     "PreguntaFiltro",
+    "TipoContrato",
+    "Jornada",
+    "Configuracion",
     "Vacante",
+    "TokenLinkedIn",
     "Postulante",
     "Postulacion",
     "Evaluacion",

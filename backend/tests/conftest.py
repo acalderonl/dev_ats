@@ -11,6 +11,7 @@ la base equivocada y ya no habría forma de cambiarlo.
 
 import os
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import psycopg2
 
@@ -33,6 +34,11 @@ def _crear_base_de_pruebas_si_no_existe() -> None:
 
 _crear_base_de_pruebas_si_no_existe()
 os.environ["DATABASE_URL"] = f"{_RAIZ}/{_BASE_DE_PRUEBAS}"
+
+# `SECRET_KEY` ya no tiene valor por defecto: sin esto la aplicación no importa. Se fija
+# aquí, igual que la base, antes de importarla. Es un valor propio de las pruebas: no
+# sirve para firmar nada fuera de aquí y no debe parecerse al de desarrollo.
+os.environ.setdefault("SECRET_KEY", "clave-solo-para-pruebas-" + uuid.uuid4().hex)
 
 from pathlib import Path  # noqa: E402
 
@@ -148,3 +154,32 @@ def entrevistador_headers(client: TestClient) -> dict[str, str]:
     email, password, *_ = DEMO_USERS[2]
     token = login(client, email, password)
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture()
+def crear_vacante(client: TestClient, reclutador_headers: dict[str, str]):
+    """Crea una vacante y devuelve su JSON.
+
+    Desde la migración 0006 la vacante nace en **borrador** y el título sale del cargo,
+    no del payload. Casi toda prueba que usa una vacante la quiere visible, así que el
+    valor por defecto aquí es `abierta`: pedir el estado en cada llamada escondería la
+    intención detrás de ruido.
+
+    Centralizado por lo aprendido con los cargos: cuando el contrato cambió, el arreglo
+    fue un archivo en vez de cuatro.
+    """
+
+    def _crear(cargo_id: int, *, dias_de_plazo: int = 10, estado: str = "abierta", **campos):
+        fecha = datetime.now(timezone.utc) + timedelta(days=dias_de_plazo)
+        cuerpo = {
+            "cargo_id": cargo_id,
+            "descripcion": "Descripción de prueba",
+            "fecha_limite": fecha.isoformat(),
+            "estado": estado,
+            **campos,
+        }
+        respuesta = client.post("/api/v1/vacantes", json=cuerpo, headers=reclutador_headers)
+        assert respuesta.status_code == 201, respuesta.text
+        return respuesta.json()
+
+    return _crear

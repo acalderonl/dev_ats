@@ -16,7 +16,9 @@ from app.models.cargo_educacion import CargoAreaAcademica, CargoNivelEducacion, 
 from app.models.catalogos_educacion import AreaAcademica, NivelEducacion, TituloAcademico
 from app.models.clasificacion_cargo import ClasificacionCargo
 from app.models.nombre_cargo import NombreCargo
+from app.models.tipo_contrato import TipoContrato
 from app.models.usuario import Usuario
+from app.models.vacante import Vacante
 from app.schemas.catalogo import CatalogoCreate, CatalogoOut, CatalogoUpdate
 
 router = APIRouter()
@@ -30,6 +32,7 @@ CATALOGOS = {
     "niveles-educacion": (NivelEducacion, CargoNivelEducacion.nivel_id),
     "titulos": (TituloAcademico, CargoTitulo.titulo_id),
     "areas-academicas": (AreaAcademica, CargoAreaAcademica.area_id),
+    "tipos-contrato": (TipoContrato, Vacante.tipo_contrato_id),
 }
 
 
