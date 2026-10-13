@@ -56,14 +56,13 @@ export interface Cargo {
   clasificacion: string | null
   mision: string | null
   actividades: Actividad[]
-  nivel_educacion_id: number | null
-  nivel_educacion: string | null
-  estado_educacion: EstadoEducacion | null
-  titulo_id: number | null
-  titulo: string | null
-  area_academica_id: number | null
-  area_academica: string | null
+  niveles_educacion: NivelDelCargo[]
+  titulos: ItemDeEducacion[]
+  areas_academicas: ItemDeEducacion[]
   experiencia_requerida: ExperienciaRequerida | null
+  experiencia_empresas_similares: boolean
+  experiencia_cargos_similares: boolean
+  experiencia_interna_otros_cargos: boolean
   competencias: CompetenciaDelCargo[]
   activo: boolean
 }
@@ -78,6 +77,22 @@ export type CatalogoTipo =
 
 /** Si el nivel de educación se exige terminado o basta con estar cursándolo. */
 export type EstadoEducacion = 'completa' | 'en_curso'
+
+/** Tope de la sección 4: como mucho dos niveles, dos títulos y dos áreas por cargo. */
+export const MAXIMO_EDUCACION = 2
+
+/** Un nivel exigido por el cargo, con su propio estado. */
+export interface NivelDelCargo {
+  nivel_id: number
+  estado: EstadoEducacion
+  nombre: string
+}
+
+/** Un título o un área ya elegidos por el cargo. */
+export interface ItemDeEducacion {
+  id: number
+  nombre: string
+}
 
 export interface CatalogoItem {
   id: number

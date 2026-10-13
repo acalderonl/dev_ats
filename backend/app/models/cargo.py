@@ -24,22 +24,27 @@ class Cargo(Base):
     #    el que se muestra, y las favoritas ya vienen arriba (se ordenan al guardar).
     actividades: Mapped[list[dict]] = mapped_column(JSONB, default=list, nullable=False)
 
-    # 4. Educación formal requerida
-    nivel_educacion_id: Mapped[int | None] = mapped_column(ForeignKey("niveles_educacion.id"), nullable=True)
-    # 'completa' o 'en_curso': acompaña al nivel, no tiene sentido por separado.
-    estado_educacion: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    titulo_id: Mapped[int | None] = mapped_column(ForeignKey("titulos_academicos.id"), nullable=True)
-    area_academica_id: Mapped[int | None] = mapped_column(ForeignKey("areas_academicas.id"), nullable=True)
+    # 4. Educación formal requerida. Hasta dos de cada uno: viven en tablas aparte
+    #    (ver `app/models/cargo_educacion.py`).
 
-    # 7. Experiencia requerida (tramo de años)
+    # 7. Experiencia requerida: el tramo de años más tres exigencias sueltas.
     experiencia_requerida: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    experiencia_empresas_similares: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    experiencia_cargos_similares: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    experiencia_interna_otros_cargos: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     activo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     nombre_catalogo: Mapped["NombreCargo"] = relationship(back_populates="cargos")  # noqa: F821
-    nivel_educacion: Mapped["NivelEducacion | None"] = relationship()  # noqa: F821
-    titulo: Mapped["TituloAcademico | None"] = relationship()  # noqa: F821
-    area_academica: Mapped["AreaAcademica | None"] = relationship()  # noqa: F821
+    niveles_educacion: Mapped[list["CargoNivelEducacion"]] = relationship(  # noqa: F821
+        back_populates="cargo", cascade="all, delete-orphan", order_by="CargoNivelEducacion.orden"
+    )
+    titulos: Mapped[list["CargoTitulo"]] = relationship(  # noqa: F821
+        back_populates="cargo", cascade="all, delete-orphan", order_by="CargoTitulo.orden"
+    )
+    areas_academicas: Mapped[list["CargoAreaAcademica"]] = relationship(  # noqa: F821
+        back_populates="cargo", cascade="all, delete-orphan", order_by="CargoAreaAcademica.orden"
+    )
     clasificacion_catalogo: Mapped["ClasificacionCargo | None"] = relationship(back_populates="cargos")  # noqa: F821
     competencias: Mapped[list["CargoCompetencia"]] = relationship(  # noqa: F821
         back_populates="cargo", cascade="all, delete-orphan"

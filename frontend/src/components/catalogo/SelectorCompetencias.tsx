@@ -82,6 +82,16 @@ export function SelectorCompetencias({
 
   async function crearYAgregar() {
     if (!texto.trim()) return
+    // Con una parecida delante no se crea nada: el objetivo del buscador es que se
+    // reutilice la que ya existe, no acabar con dos versiones de lo mismo.
+    if (parecida) {
+      toast.error(
+        parecidaYaElegida
+          ? `"${parecida.nombre}" ya está en la lista. No se pueden tener repetidos.`
+          : `Ya existe "${parecida.nombre}". Elígela de la lista en vez de crear una repetida.`
+      )
+      return
+    }
     setCreando(true)
     try {
       // Si ya existía escrita de otra forma, el backend devuelve la existente.
@@ -124,11 +134,16 @@ export function SelectorCompetencias({
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                if (disponibles.length > 0 && hayExacta) agregar(disponibles[0])
-                else crearYAgregar()
+              if (e.key !== 'Enter') return
+              e.preventDefault()
+              if (hayExacta) {
+                // La misma, escrita igual: si está libre se añade; si ya la tiene, se avisa.
+                const exacta = disponibles.find((s) => s.nombre.trim().toLowerCase() === normalizado)
+                if (exacta) agregar(exacta)
+                else toast.error(`"${texto.trim()}" ya está en la lista. No se pueden tener repetidos.`)
+                return
               }
+              crearYAgregar()
             }}
             placeholder={placeholder}
             className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
@@ -160,8 +175,9 @@ export function SelectorCompetencias({
               <button
                 type="button"
                 onClick={crearYAgregar}
-                disabled={creando}
-                className="flex w-full items-center gap-2 border-t border-slate-100 bg-slate-50 px-3 py-2 text-left text-sm font-medium text-brand-600 hover:bg-brand-50 disabled:opacity-50"
+                disabled={creando || Boolean(parecida)}
+                title={parecida ? `Demasiado parecida a "${parecida.nombre}"` : undefined}
+                className="flex w-full items-center gap-2 border-t border-slate-100 bg-slate-50 px-3 py-2 text-left text-sm font-medium text-brand-600 hover:bg-brand-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:hover:bg-slate-50"
               >
                 {creando ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
                 Crear «{texto.trim()}»

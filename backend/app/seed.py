@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
 from app.models.cargo import Cargo
+from app.models.cargo_educacion import CargoAreaAcademica, CargoNivelEducacion
 from app.models.catalogos_educacion import AreaAcademica, NivelEducacion, TituloAcademico
 from app.models.clasificacion_cargo import ClasificacionCargo
 from app.models.nombre_cargo import NombreCargo
@@ -186,13 +187,28 @@ def seed_demo_cargos(db: Session) -> None:
             # La primera actividad queda marcada como favorita, para que el demo muestre
             # cómo se ven las destacadas.
             actividades=[{"texto": texto, "favorita": indice == 0} for indice, texto in enumerate(data["actividades"])],
-            nivel_educacion_id=_catalogo(db, NivelEducacion, data["nivel_educacion"]).id,
-            estado_educacion="completa",
-            area_academica_id=_catalogo(db, AreaAcademica, data["area_academica"]).id,
             experiencia_requerida=data["experiencia_requerida"],
+            experiencia_cargos_similares=True,
         )
         db.add(cargo)
         db.flush()
+
+        db.add(
+            CargoNivelEducacion(
+                cargo_id=cargo.id,
+                nivel_id=_catalogo(db, NivelEducacion, data["nivel_educacion"]).id,
+                estado="completa",
+                orden=0,
+            )
+        )
+        db.add(
+            CargoAreaAcademica(
+                cargo_id=cargo.id,
+                area_id=_catalogo(db, AreaAcademica, data["area_academica"]).id,
+                orden=0,
+            )
+        )
+
         for pregunta, tipo, eliminatoria, respuesta in data["preguntas"]:
             db.add(
                 PreguntaFiltro(

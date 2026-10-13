@@ -8,6 +8,39 @@ una funcionalidad que funcione.
 
 ---
 
+## 2026-10-12 — Día 5 · Afinar el formulario de Cargos
+
+**Fase:** M1 otra vez, a petición del dueño. **S.1 sigue sin empezar**: la etapa 2 no se ha tocado.
+
+**Hecho**
+- **Sección 4 admite hasta dos** niveles, títulos y áreas. Cada nivel lleva su propio estado
+  (completa / en curso), así que pasan de cuatro columnas sueltas a tres tablas (migración 0005).
+  El botón de añadir se deshabilita al llegar a dos, y **el engranaje se movió a la cabecera** del
+  campo para que no baje al añadir una fila.
+- Un valor ya elegido deja de ofrecerse en la otra fila: no tiene sentido exigir dos veces el mismo
+  nivel, y la clave primaria de la tabla puente lo rechazaría igualmente.
+- **El Enter ya no crea competencias parecidas.** Antes, con el aviso delante, Enter creaba igual.
+  Ahora bloquea y explica; el botón "Crear" también queda deshabilitado en ese caso.
+- **Checklist en el paso 7**: experiencia en empresas similares, en cargos similares e interna en
+  otros cargos.
+
+**Verificado**
+- **53 pruebas en verde** (eran 48). Nuevas: tope de dos, nivel repetido, estado inválido, checklist
+  y que editar reemplaza la educación en vez de acumularla.
+- En PostgreSQL: dos niveles guardados con SU estado (`Tercer Nivel`/completa y `Maestría`/en_curso)
+  y el checklist con los tres valores correctos.
+- El Enter con los **dos controles**: "Trabajo en equipos" no creó nada (solo sigue existiendo
+  "Trabajo en equipo"), y "Negociacion bajo presion" sí se creó. El bloqueo no rompió la creación.
+- La migración 0005 conservó la educación del cargo que ya la tenía.
+- Fuga cero: 5 cargos antes de la suite, 5 después.
+
+**Pendiente / avisos**
+- 🔴 La etapa 2 (seguridad) sigue entera sin empezar. Ya van dos sesiones seguidas en M1.
+- El bloqueo por parecido usa un umbral de 0,55: dos competencias legítimamente distintas pero
+  parecidas no se pueden crear. Si molesta, hay que subir el umbral o añadir una confirmación.
+
+---
+
 ## 2026-10-02 — Día 4 · Rehacer el módulo de Cargos
 
 **Fases:** T.1 y T.1B cerradas. M1 reconstruido (fuera del mapa original: lo pidió el dueño en caliente).

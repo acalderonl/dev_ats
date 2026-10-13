@@ -104,38 +104,142 @@ def test_experiencia_y_competencias_se_guardan(client, reclutador_headers, uniqu
     assert cargo["competencias"][0]["requerido"] is False
 
 
-def test_educacion_formal_se_guarda(client, reclutador_headers, unique_suffix):
+def _catalogo_educacion(client, headers, catalogo: str) -> list[dict]:
+    items = client.get(f"/api/v1/catalogos/{catalogo}", headers=headers).json()
+    assert items, f"el seed debe dejar sembrado el catálogo '{catalogo}'"
+    return items
+
+
+def test_educacion_formal_admite_dos_de_cada_uno(client, reclutador_headers, unique_suffix):
     nombre_id = _crear_nombre(client, reclutador_headers, f"Cargo Educacion {unique_suffix}")
-    niveles = client.get("/api/v1/catalogos/niveles-educacion", headers=reclutador_headers).json()
-    areas = client.get("/api/v1/catalogos/areas-academicas", headers=reclutador_headers).json()
-    assert niveles and areas, "el seed debe dejar sembrados los catálogos de educación"
+    niveles = _catalogo_educacion(client, reclutador_headers, "niveles-educacion")
+    areas = _catalogo_educacion(client, reclutador_headers, "areas-academicas")
+    titulos = _catalogo_educacion(client, reclutador_headers, "titulos")
 
     respuesta = client.post(
         "/api/v1/cargos",
         json={
             "nombre_id": nombre_id,
-            "nivel_educacion_id": niveles[0]["id"],
-            "estado_educacion": "en_curso",
-            "area_academica_id": areas[0]["id"],
+            "niveles_educacion": [
+                {"nivel_id": niveles[0]["id"], "estado": "completa"},
+                {"nivel_id": niveles[1]["id"], "estado": "en_curso"},
+            ],
+            "titulos_ids": [titulos[0]["id"], titulos[1]["id"]],
+            "areas_academicas_ids": [areas[0]["id"]],
         },
         headers=reclutador_headers,
     )
     assert respuesta.status_code == 201, respuesta.text
 
     cargo = respuesta.json()
-    assert cargo["nivel_educacion"] == niveles[0]["nombre"]
-    assert cargo["estado_educacion"] == "en_curso"
-    assert cargo["area_academica"] == areas[0]["nombre"]
+    # Cada nivel conserva SU estado: es el motivo de que vivan en filas separadas.
+    assert [n["estado"] for n in cargo["niveles_educacion"]] == ["completa", "en_curso"]
+    assert [n["nombre"] for n in cargo["niveles_educacion"]] == [niveles[0]["nombre"], niveles[1]["nombre"]]
+    assert len(cargo["titulos"]) == 2
+    assert len(cargo["areas_academicas"]) == 1
+
+
+def test_mas_de_dos_niveles_se_rechaza(client, reclutador_headers, unique_suffix):
+    nombre_id = _crear_nombre(client, reclutador_headers, f"Cargo Tres Niveles {unique_suffix}")
+    niveles = _catalogo_educacion(client, reclutador_headers, "niveles-educacion")
+
+    respuesta = client.post(
+        "/api/v1/cargos",
+        json={
+            "nombre_id": nombre_id,
+            "niveles_educacion": [{"nivel_id": n["id"], "estado": "completa"} for n in niveles[:3]],
+        },
+        headers=reclutador_headers,
+    )
+    assert respuesta.status_code == 422
+
+
+def test_el_mismo_nivel_dos_veces_se_rechaza(client, reclutador_headers, unique_suffix):
+    nombre_id = _crear_nombre(client, reclutador_headers, f"Cargo Nivel Repe {unique_suffix}")
+    niveles = _catalogo_educacion(client, reclutador_headers, "niveles-educacion")
+
+    respuesta = client.post(
+        "/api/v1/cargos",
+        json={
+            "nombre_id": nombre_id,
+            "niveles_educacion": [
+                {"nivel_id": niveles[0]["id"], "estado": "completa"},
+                {"nivel_id": niveles[0]["id"], "estado": "en_curso"},
+            ],
+        },
+        headers=reclutador_headers,
+    )
+    assert respuesta.status_code == 422
+
+
+def test_mas_de_dos_titulos_se_rechaza(client, reclutador_headers, unique_suffix):
+    nombre_id = _crear_nombre(client, reclutador_headers, f"Cargo Tres Titulos {unique_suffix}")
+    titulos = _catalogo_educacion(client, reclutador_headers, "titulos")
+
+    respuesta = client.post(
+        "/api/v1/cargos",
+        json={"nombre_id": nombre_id, "titulos_ids": [t["id"] for t in titulos[:3]]},
+        headers=reclutador_headers,
+    )
+    assert respuesta.status_code == 422
 
 
 def test_estado_educacion_invalido_se_rechaza(client, reclutador_headers, unique_suffix):
     nombre_id = _crear_nombre(client, reclutador_headers, f"Cargo Edu Mal {unique_suffix}")
+    niveles = _catalogo_educacion(client, reclutador_headers, "niveles-educacion")
     respuesta = client.post(
         "/api/v1/cargos",
-        json={"nombre_id": nombre_id, "estado_educacion": "a_medias"},
+        json={
+            "nombre_id": nombre_id,
+            "niveles_educacion": [{"nivel_id": niveles[0]["id"], "estado": "a_medias"}],
+        },
         headers=reclutador_headers,
     )
     assert respuesta.status_code == 422
+
+
+def test_checklist_de_experiencia_se_guarda(client, reclutador_headers, unique_suffix):
+    nombre_id = _crear_nombre(client, reclutador_headers, f"Cargo Checklist {unique_suffix}")
+
+    respuesta = client.post(
+        "/api/v1/cargos",
+        json={
+            "nombre_id": nombre_id,
+            "experiencia_empresas_similares": True,
+            "experiencia_cargos_similares": False,
+            "experiencia_interna_otros_cargos": True,
+        },
+        headers=reclutador_headers,
+    )
+    assert respuesta.status_code == 201, respuesta.text
+
+    cargo = respuesta.json()
+    assert cargo["experiencia_empresas_similares"] is True
+    assert cargo["experiencia_cargos_similares"] is False
+    assert cargo["experiencia_interna_otros_cargos"] is True
+
+
+def test_editar_reemplaza_la_educacion(client, reclutador_headers, unique_suffix, crear_cargo):
+    """Guardar con un nivel menos debe dejar uno, no acumular el anterior."""
+    cargo = crear_cargo(unique_suffix)
+    niveles = _catalogo_educacion(client, reclutador_headers, "niveles-educacion")
+
+    cuerpo = {
+        "nombre_id": cargo["nombre_id"],
+        "niveles_educacion": [
+            {"nivel_id": niveles[0]["id"], "estado": "completa"},
+            {"nivel_id": niveles[1]["id"], "estado": "completa"},
+        ],
+    }
+    primera = client.put(f"/api/v1/cargos/{cargo['id']}", json=cuerpo, headers=reclutador_headers)
+    assert primera.status_code == 200
+    assert len(primera.json()["niveles_educacion"]) == 2
+
+    cuerpo["niveles_educacion"] = [{"nivel_id": niveles[1]["id"], "estado": "en_curso"}]
+    segunda = client.put(f"/api/v1/cargos/{cargo['id']}", json=cuerpo, headers=reclutador_headers)
+    assert segunda.status_code == 200
+    assert len(segunda.json()["niveles_educacion"]) == 1
+    assert segunda.json()["niveles_educacion"][0]["estado"] == "en_curso"
 
 
 def test_una_competencia_no_puede_ser_requerida_y_deseada(client, reclutador_headers, unique_suffix):

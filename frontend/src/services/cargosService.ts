@@ -7,11 +7,13 @@ export interface CargoCreate {
   clasificacion_id: number | null
   mision: string | null
   actividades: Actividad[]
-  nivel_educacion_id: number | null
-  estado_educacion: EstadoEducacion | null
-  titulo_id: number | null
-  area_academica_id: number | null
+  niveles_educacion: { nivel_id: number; estado: EstadoEducacion }[]
+  titulos_ids: number[]
+  areas_academicas_ids: number[]
   experiencia_requerida: ExperienciaRequerida | null
+  experiencia_empresas_similares: boolean
+  experiencia_cargos_similares: boolean
+  experiencia_interna_otros_cargos: boolean
   competencias: { competencia_id: number; requerido: boolean; deseado: boolean }[]
 }
 

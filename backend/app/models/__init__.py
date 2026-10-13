@@ -5,6 +5,7 @@ from app.models.nombre_cargo import NombreCargo
 from app.models.clasificacion_cargo import ClasificacionCargo
 from app.models.catalogos_educacion import AreaAcademica, NivelEducacion, TituloAcademico
 from app.models.cargo import Cargo
+from app.models.cargo_educacion import CargoAreaAcademica, CargoNivelEducacion, CargoTitulo
 from app.models.competencia import CargoCompetencia, Competencia
 from app.models.pregunta_filtro import PreguntaFiltro
 from app.models.vacante import Vacante
@@ -22,6 +23,9 @@ __all__ = [
     "NivelEducacion",
     "TituloAcademico",
     "AreaAcademica",
+    "CargoNivelEducacion",
+    "CargoTitulo",
+    "CargoAreaAcademica",
     "Competencia",
     "CargoCompetencia",
     "PreguntaFiltro",

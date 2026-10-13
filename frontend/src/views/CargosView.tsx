@@ -6,6 +6,10 @@ import { Badge } from '@/components/common/Badge'
 import { Modal } from '@/components/common/Modal'
 import { GestionCatalogoModal } from '@/components/catalogo/GestionCatalogoModal'
 import { SelectorCompetencias } from '@/components/catalogo/SelectorCompetencias'
+import {
+  SelectorMultipleCatalogo,
+  type FilaDeCatalogo,
+} from '@/components/catalogo/SelectorMultipleCatalogo'
 import { BarraExperiencia } from '@/components/catalogo/BarraExperiencia'
 import { useDataStore } from '@/store/dataStore'
 import { ApiError } from '@/lib/apiClient'
@@ -50,13 +54,26 @@ function formDesdeCargo(cargo: Cargo) {
       cargo.actividades.length > 0
         ? cargo.actividades.map((a) => ({ id: crypto.randomUUID(), texto: a.texto, favorita: a.favorita }))
         : [actividadNueva()],
-    nivel_educacion_id: cargo.nivel_educacion_id,
-    estado_educacion: (cargo.estado_educacion ?? 'completa') as EstadoEducacion,
-    titulo_id: cargo.titulo_id,
-    area_academica_id: cargo.area_academica_id,
+    niveles_educacion:
+      cargo.niveles_educacion.length > 0
+        ? cargo.niveles_educacion.map((n) => ({ catalogo_id: n.nivel_id, estado: n.estado }))
+        : [filaVacia(true)],
+    titulos: cargo.titulos.length > 0 ? cargo.titulos.map((t) => ({ catalogo_id: t.id })) : [filaVacia()],
+    areas_academicas:
+      cargo.areas_academicas.length > 0
+        ? cargo.areas_academicas.map((a) => ({ catalogo_id: a.id }))
+        : [filaVacia()],
     experiencia_requerida: cargo.experiencia_requerida,
+    experiencia_empresas_similares: cargo.experiencia_empresas_similares,
+    experiencia_cargos_similares: cargo.experiencia_cargos_similares,
+    experiencia_interna_otros_cargos: cargo.experiencia_interna_otros_cargos,
     competencias: cargo.competencias,
   }
+}
+
+/** Fila vacía del selector múltiple; con estado solo para el nivel de educación. */
+function filaVacia(conEstado = false): FilaDeCatalogo {
+  return { catalogo_id: null, ...(conEstado ? { estado: 'completa' as EstadoEducacion } : {}) }
 }
 
 const FORM_VACIO = {
@@ -65,13 +82,22 @@ const FORM_VACIO = {
   clasificacion_id: null as number | null,
   mision: '',
   actividades: [actividadNueva()] as ActividadForm[],
-  nivel_educacion_id: null as number | null,
-  estado_educacion: 'completa' as EstadoEducacion,
-  titulo_id: null as number | null,
-  area_academica_id: null as number | null,
+  niveles_educacion: [filaVacia(true)] as FilaDeCatalogo[],
+  titulos: [filaVacia()] as FilaDeCatalogo[],
+  areas_academicas: [filaVacia()] as FilaDeCatalogo[],
   experiencia_requerida: null as ExperienciaRequerida | null,
+  experiencia_empresas_similares: false,
+  experiencia_cargos_similares: false,
+  experiencia_interna_otros_cargos: false,
   competencias: [] as CompetenciaDelCargo[],
 }
+
+/** Las tres exigencias sueltas que acompañan al tramo de años (sección 7). */
+const EXIGENCIAS_DE_EXPERIENCIA = [
+  { campo: 'experiencia_empresas_similares', etiqueta: 'Experiencia en empresas similares' },
+  { campo: 'experiencia_cargos_similares', etiqueta: 'Experiencia en cargos similares' },
+  { campo: 'experiencia_interna_otros_cargos', etiqueta: 'Experiencia interna en otros cargos' },
+] as const
 
 function errorMessage(err: unknown): string {
   return err instanceof ApiError ? err.message : 'Ocurrió un error inesperado'
@@ -193,12 +219,18 @@ export function CargosView() {
       mision: form.mision.trim() || null,
       // El `id` local no viaja: solo sirve para que React identifique cada fila.
       actividades: form.actividades.map(({ texto, favorita }) => ({ texto, favorita })),
-      nivel_educacion_id: form.nivel_educacion_id,
-      // El estado solo tiene sentido si hay nivel elegido.
-      estado_educacion: form.nivel_educacion_id ? form.estado_educacion : null,
-      titulo_id: form.titulo_id,
-      area_academica_id: form.area_academica_id,
+      // Las filas sin elegir no viajan: el formulario siempre muestra una vacía al final.
+      niveles_educacion: form.niveles_educacion
+        .filter((f) => f.catalogo_id !== null)
+        .map((f) => ({ nivel_id: f.catalogo_id as number, estado: f.estado ?? 'completa' })),
+      titulos_ids: form.titulos.filter((f) => f.catalogo_id !== null).map((f) => f.catalogo_id as number),
+      areas_academicas_ids: form.areas_academicas
+        .filter((f) => f.catalogo_id !== null)
+        .map((f) => f.catalogo_id as number),
       experiencia_requerida: form.experiencia_requerida,
+      experiencia_empresas_similares: form.experiencia_empresas_similares,
+      experiencia_cargos_similares: form.experiencia_cargos_similares,
+      experiencia_interna_otros_cargos: form.experiencia_interna_otros_cargos,
       competencias: form.competencias.map(({ competencia_id, requerido, deseado }) => ({
         competencia_id,
         requerido,
@@ -464,49 +496,32 @@ export function CargosView() {
           </Seccion>
 
           <Seccion numero={4} titulo="Educación formal requerida">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]">
-              <SelectorDeCatalogo
-                label="Nivel de educación formal"
-                valor={form.nivel_educacion_id}
-                onChange={(id) => setForm({ ...form, nivel_educacion_id: id })}
-                items={catalogos['niveles-educacion']}
-                onGestionar={() => setGestionando('niveles-educacion')}
-              />
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Estado</label>
-                <div className="flex overflow-hidden rounded-lg border border-slate-300">
-                  {(['completa', 'en_curso'] as EstadoEducacion[]).map((estado) => (
-                    <button
-                      key={estado}
-                      type="button"
-                      onClick={() => setForm({ ...form, estado_educacion: estado })}
-                      className={`px-4 py-2 text-xs font-medium transition-colors ${
-                        form.estado_educacion === estado
-                          ? 'bg-brand-600 text-white'
-                          : 'bg-white text-slate-500 hover:bg-slate-50'
-                      }`}
-                    >
-                      {estado === 'completa' ? 'Completa' : 'En curso'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <SelectorDeCatalogo
-              label="Título requerido"
-              valor={form.titulo_id}
-              onChange={(id) => setForm({ ...form, titulo_id: id })}
-              items={catalogos.titulos}
-              onGestionar={() => setGestionando('titulos')}
+            <SelectorMultipleCatalogo
+              label="Nivel de educación formal"
+              filas={form.niveles_educacion}
+              onChange={(filas) => setForm((f) => ({ ...f, niveles_educacion: filas }))}
+              items={catalogos['niveles-educacion']}
+              onGestionar={() => setGestionando('niveles-educacion')}
+              conEstado
+              textoAgregar="Agregar otro nivel"
             />
 
-            <SelectorDeCatalogo
+            <SelectorMultipleCatalogo
+              label="Título requerido"
+              filas={form.titulos}
+              onChange={(filas) => setForm((f) => ({ ...f, titulos: filas }))}
+              items={catalogos.titulos}
+              onGestionar={() => setGestionando('titulos')}
+              textoAgregar="Agregar otro título"
+            />
+
+            <SelectorMultipleCatalogo
               label="Área académica de especialización"
-              valor={form.area_academica_id}
-              onChange={(id) => setForm({ ...form, area_academica_id: id })}
+              filas={form.areas_academicas}
+              onChange={(filas) => setForm((f) => ({ ...f, areas_academicas: filas }))}
               items={catalogos['areas-academicas']}
               onGestionar={() => setGestionando('areas-academicas')}
+              textoAgregar="Agregar otra área"
             />
           </Seccion>
 
@@ -545,6 +560,23 @@ export function CargosView() {
               valor={form.experiencia_requerida}
               onChange={(valor) => setForm((f) => ({ ...f, experiencia_requerida: valor }))}
             />
+
+            <div className="overflow-hidden rounded-lg border border-slate-200">
+              {EXIGENCIAS_DE_EXPERIENCIA.map(({ campo, etiqueta }) => (
+                <label
+                  key={campo}
+                  className="flex cursor-pointer items-center gap-2.5 border-b border-slate-100 px-3 py-2.5 last:border-b-0 hover:bg-slate-50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={form[campo]}
+                    onChange={(e) => setForm((f) => ({ ...f, [campo]: e.target.checked }))}
+                    className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                  />
+                  <span className="text-sm text-slate-700">{etiqueta}</span>
+                </label>
+              ))}
+            </div>
           </Seccion>
 
           <button

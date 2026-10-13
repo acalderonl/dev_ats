@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import get_current_user, require_roles
 from app.models.cargo import Cargo
+from app.models.cargo_educacion import CargoAreaAcademica, CargoNivelEducacion, CargoTitulo
 from app.models.catalogos_educacion import AreaAcademica, NivelEducacion, TituloAcademico
 from app.models.clasificacion_cargo import ClasificacionCargo
 from app.models.nombre_cargo import NombreCargo
@@ -20,13 +21,15 @@ from app.schemas.catalogo import CatalogoCreate, CatalogoOut, CatalogoUpdate
 
 router = APIRouter()
 
-# catálogo -> (modelo, columna de `cargos` que lo referencia)
+# catálogo -> (modelo del catálogo, columna que lo referencia).
+# Unos los referencia `cargos` directamente; los de educación, su tabla puente, porque
+# desde la migración 0005 un cargo admite hasta dos de cada uno.
 CATALOGOS = {
     "nombres-cargo": (NombreCargo, Cargo.nombre_id),
     "clasificaciones": (ClasificacionCargo, Cargo.clasificacion_id),
-    "niveles-educacion": (NivelEducacion, Cargo.nivel_educacion_id),
-    "titulos": (TituloAcademico, Cargo.titulo_id),
-    "areas-academicas": (AreaAcademica, Cargo.area_academica_id),
+    "niveles-educacion": (NivelEducacion, CargoNivelEducacion.nivel_id),
+    "titulos": (TituloAcademico, CargoTitulo.titulo_id),
+    "areas-academicas": (AreaAcademica, CargoAreaAcademica.area_id),
 }
 
 
@@ -49,7 +52,9 @@ def _obtener_item(db: Session, modelo, item_id: int):
 
 
 def _conteo_de_uso(db: Session, columna, item_id: int) -> int:
-    return db.scalar(select(func.count()).select_from(Cargo).where(columna == item_id)) or 0
+    """Cuántas veces se usa. La tabla sale de la propia columna, sea `cargos` o una puente."""
+    tabla = columna.parent.class_
+    return db.scalar(select(func.count()).select_from(tabla).where(columna == item_id)) or 0
 
 
 @router.get("/{catalogo}", response_model=list[CatalogoOut])

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.core.database import get_db
 from app.core.security import require_roles
 from app.models.cargo import Cargo
+from app.models.cargo_educacion import CargoAreaAcademica, CargoNivelEducacion, CargoTitulo
 from app.models.catalogos_educacion import AreaAcademica, NivelEducacion, TituloAcademico
 from app.models.clasificacion_cargo import ClasificacionCargo
 from app.models.competencia import CargoCompetencia, Competencia
@@ -15,6 +16,8 @@ from app.schemas.cargo import (
     CargoCreate,
     CargoOut,
     CompetenciaDelCargoOut,
+    ItemDeEducacionOut,
+    NivelDelCargoOut,
     PreguntaFiltroCreate,
     PreguntaFiltroOut,
 )
@@ -27,15 +30,15 @@ def _con_catalogos(query):
     return query.options(
         selectinload(Cargo.nombre_catalogo),
         selectinload(Cargo.clasificacion_catalogo),
-        selectinload(Cargo.nivel_educacion),
-        selectinload(Cargo.titulo),
-        selectinload(Cargo.area_academica),
+        selectinload(Cargo.niveles_educacion).selectinload(CargoNivelEducacion.nivel),
+        selectinload(Cargo.titulos).selectinload(CargoTitulo.titulo),
+        selectinload(Cargo.areas_academicas).selectinload(CargoAreaAcademica.area),
         selectinload(Cargo.competencias).selectinload(CargoCompetencia.competencia),
     )
 
 
 def _a_salida(cargo: Cargo) -> CargoOut:
-    """Aplana las competencias del cargo: la UI necesita el nombre y el tipo, no solo el id."""
+    """Aplana las relaciones: la UI necesita el nombre además del id."""
     return CargoOut(
         id=cargo.id,
         nombre_id=cargo.nombre_id,
@@ -45,14 +48,16 @@ def _a_salida(cargo: Cargo) -> CargoOut:
         clasificacion=cargo.clasificacion,
         mision=cargo.mision,
         actividades=cargo.actividades,
-        nivel_educacion_id=cargo.nivel_educacion_id,
-        nivel_educacion=cargo.nivel_educacion.nombre if cargo.nivel_educacion else None,
-        estado_educacion=cargo.estado_educacion,
-        titulo_id=cargo.titulo_id,
-        titulo=cargo.titulo.nombre if cargo.titulo else None,
-        area_academica_id=cargo.area_academica_id,
-        area_academica=cargo.area_academica.nombre if cargo.area_academica else None,
+        niveles_educacion=[
+            NivelDelCargoOut(nivel_id=n.nivel_id, estado=n.estado, nombre=n.nivel.nombre)
+            for n in cargo.niveles_educacion
+        ],
+        titulos=[ItemDeEducacionOut(id=t.titulo_id, nombre=t.titulo.nombre) for t in cargo.titulos],
+        areas_academicas=[ItemDeEducacionOut(id=a.area_id, nombre=a.area.nombre) for a in cargo.areas_academicas],
         experiencia_requerida=cargo.experiencia_requerida,
+        experiencia_empresas_similares=cargo.experiencia_empresas_similares,
+        experiencia_cargos_similares=cargo.experiencia_cargos_similares,
+        experiencia_interna_otros_cargos=cargo.experiencia_interna_otros_cargos,
         activo=cargo.activo,
         competencias=[
             CompetenciaDelCargoOut(
@@ -92,16 +97,17 @@ def _validar_catalogos(db: Session, payload: CargoCreate) -> None:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="La clasificación seleccionada no existe en el catálogo",
         )
-    for modelo, valor, etiqueta in (
-        (NivelEducacion, payload.nivel_educacion_id, "nivel de educación"),
-        (TituloAcademico, payload.titulo_id, "título"),
-        (AreaAcademica, payload.area_academica_id, "área académica"),
+    for modelo, ids, etiqueta in (
+        (NivelEducacion, [n.nivel_id for n in payload.niveles_educacion], "nivel de educación"),
+        (TituloAcademico, payload.titulos_ids, "título"),
+        (AreaAcademica, payload.areas_academicas_ids, "área académica"),
     ):
-        if valor is not None and db.get(modelo, valor) is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"El {etiqueta} seleccionado no existe en el catálogo",
-            )
+        for valor in ids:
+            if db.get(modelo, valor) is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"El {etiqueta} seleccionado no existe en el catálogo",
+                )
 
 
 def _guardar_competencias(db: Session, cargo_id: int, pedidas: list[dict]) -> None:
@@ -116,6 +122,20 @@ def _guardar_competencias(db: Session, cargo_id: int, pedidas: list[dict]) -> No
         db.add(CargoCompetencia(cargo_id=cargo_id, **item))
 
 
+def _guardar_educacion(db: Session, cargo_id: int, payload: CargoCreate) -> None:
+    """Reemplaza la educación formal del cargo. El orden de las listas es el que se muestra."""
+    db.query(CargoNivelEducacion).filter(CargoNivelEducacion.cargo_id == cargo_id).delete()
+    db.query(CargoTitulo).filter(CargoTitulo.cargo_id == cargo_id).delete()
+    db.query(CargoAreaAcademica).filter(CargoAreaAcademica.cargo_id == cargo_id).delete()
+
+    for orden, nivel in enumerate(payload.niveles_educacion):
+        db.add(CargoNivelEducacion(cargo_id=cargo_id, nivel_id=nivel.nivel_id, estado=nivel.estado, orden=orden))
+    for orden, titulo_id in enumerate(payload.titulos_ids):
+        db.add(CargoTitulo(cargo_id=cargo_id, titulo_id=titulo_id, orden=orden))
+    for orden, area_id in enumerate(payload.areas_academicas_ids):
+        db.add(CargoAreaAcademica(cargo_id=cargo_id, area_id=area_id, orden=orden))
+
+
 @router.post("", response_model=CargoOut, status_code=status.HTTP_201_CREATED)
 def crear_cargo(
     payload: CargoCreate,
@@ -126,11 +146,15 @@ def crear_cargo(
 
     datos = payload.model_dump()
     competencias_pedidas = datos.pop("competencias")
+    # Las listas de educación tienen su propia tabla: no son columnas de `cargos`.
+    for campo in ("niveles_educacion", "titulos_ids", "areas_academicas_ids"):
+        datos.pop(campo)
 
     cargo = Cargo(**datos)
     db.add(cargo)
     db.flush()
     _guardar_competencias(db, cargo.id, competencias_pedidas)
+    _guardar_educacion(db, cargo.id, payload)
 
     db.commit()
     return _a_salida(_cargo_completo(db, cargo.id))
@@ -149,10 +173,13 @@ def actualizar_cargo(
 
     datos = payload.model_dump()
     competencias_pedidas = datos.pop("competencias")
+    for campo in ("niveles_educacion", "titulos_ids", "areas_academicas_ids"):
+        datos.pop(campo)
     for campo, valor in datos.items():
         setattr(cargo, campo, valor)
 
     _guardar_competencias(db, cargo_id, competencias_pedidas)
+    _guardar_educacion(db, cargo_id, payload)
 
     db.commit()
     return _a_salida(_cargo_completo(db, cargo_id))

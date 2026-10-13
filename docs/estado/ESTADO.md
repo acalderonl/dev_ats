@@ -1,6 +1,6 @@
 # Estado del proyecto — dónde estamos AHORA
 
-> Última actualización: **2026-10-02** · Días trabajados: **4** · Pruebas: **48 en verde**
+> Última actualización: **2026-10-12** · Días trabajados: **5** · Pruebas: **53 en verde**
 > Este archivo se lee al empezar cada sesión. Si algo aquí ya no es cierto, se corrige antes de seguir.
 
 ## En una línea
@@ -15,6 +15,7 @@ impiden salir a internet: con destino de producción real, esa es la próxima et
 |---|---|
 | **Fase** | `S.1 — Secretos fuera del código` |
 | **Etapa** | 2 de 6 — Bloqueantes de seguridad |
+| **Ojo** | Lleva **dos sesiones sin empezar**: los días 4 y 12 de octubre se dedicaron a M1 por petición del dueño. La etapa 2 sigue intacta. |
 | **Por qué esta** | `config.py:10` trae `SECRET_KEY` con valor por defecto, publicado en este repo. Con él se puede fabricar un token de super admin sin contraseña. |
 | **Terminada cuando** | Si falta `SECRET_KEY`, la app **no arranca**. El valor de producción se genera aparte y nunca se sube. |
 | **Antes hay que** | Levantar el entorno: `docker compose up -d`. |
@@ -56,6 +57,10 @@ Un cargo ya no es un nombre y una descripción: es un **descriptivo de puesto** 
 experiencia—. Los valores repetibles viven en catálogos con su propio CRUD (el engranaje junto a
 cada selector), y las competencias se comparten entre cargos con detección de parecidos para que
 no se dupliquen escritas de formas distintas.
+
+La educación formal admite **hasta dos** niveles, títulos y áreas; cada nivel con su propio estado
+(completa / en curso). La experiencia suma un checklist de tres exigencias. Al escribir una
+competencia parecida a una existente, **no se puede crear**: hay que elegir la que ya está.
 
 La columna **Verificado** solo dice lo que se comprobó de verdad. "A mano" significa que una persona lo
 usó en el navegador: no es una prueba automática y no protege contra regresiones.
