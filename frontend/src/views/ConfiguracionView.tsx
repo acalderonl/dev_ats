@@ -215,7 +215,7 @@ export function ConfiguracionView() {
         </p>
       </div>
 
-      <Card>
+      <Card className="p-5 sm:p-6">
         <h2 className="mb-4 text-sm font-semibold text-slate-800">Empresa</h2>
         <div className="space-y-4">
           <Campo
@@ -234,7 +234,7 @@ export function ConfiguracionView() {
         </div>
       </Card>
 
-      <Card>
+      <Card className="p-5 sm:p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-800">LinkedIn</h2>
           {estadoLinkedIn?.cuenta_conectada ? (
@@ -324,7 +324,7 @@ export function ConfiguracionView() {
         )}
       </Card>
 
-      <Card>
+      <Card className="p-5 sm:p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-800">Correo (Gmail / Google Workspace)</h2>
           {config.gmail_password_app_configurado ? (
@@ -351,7 +351,7 @@ export function ConfiguracionView() {
         </div>
       </Card>
 
-      <Card>
+      <Card className="p-5 sm:p-6">
         <h2 className="mb-1 text-sm font-semibold text-slate-800">Jornadas laborales</h2>
         <p className="mb-4 text-xs text-slate-500">
           Alimentan el selector de horario de la vacante. La hora de salida se calcula con estas horas.

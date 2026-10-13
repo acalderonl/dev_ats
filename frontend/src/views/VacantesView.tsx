@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Calendar,
+  Clock,
   Copy,
+  DollarSign,
   Eye,
+  FileText,
   Image as ImageIcon,
   Linkedin,
   Loader2,
@@ -12,6 +15,7 @@ import {
   Send,
   Settings2,
   Trash2,
+  Users,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card } from '@/components/common/Card'
@@ -129,6 +133,23 @@ const ETIQUETA_DEL_POST: Record<string, string> = {
   programado: 'Post programado',
   publicado: 'Post publicado',
   error: 'Post con error',
+}
+
+const PUNTO_DEL_POST: Record<string, string> = {
+  borrador: 'bg-slate-300',
+  programado: 'bg-amber-400',
+  publicado: 'bg-emerald-500',
+  error: 'bg-red-500',
+}
+
+/** Una condición del puesto: icono y texto, en una etiqueta que no se parte. */
+function Dato({ icono: Icono, children }: { icono: typeof Clock; children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-50 px-2 py-1 text-xs text-slate-600 ring-1 ring-inset ring-slate-200">
+      <Icono size={12} className="shrink-0 text-slate-400" />
+      {children}
+    </span>
+  )
 }
 
 export function VacantesView() {
@@ -338,29 +359,39 @@ export function VacantesView() {
       </div>
 
       {vacantes.length === 0 && (
-        <Card>
-          <p className="py-8 text-center text-sm text-slate-500">
+        <Card className="p-10">
+          <p className="text-center text-sm text-slate-500">
             Todavía no hay vacantes. Crea una desde un cargo existente.
           </p>
         </Card>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid items-stretch gap-5 md:grid-cols-2">
         {vacantes.map((vacante) => {
           const postulantes = postulaciones.filter((p) => p.vacante_id === vacante.id).length
           return (
-            <Card key={vacante.id}>
+            <Card
+              key={vacante.id}
+              className="flex h-full flex-col overflow-hidden transition-shadow hover:border-brand-300 hover:shadow-md"
+            >
               <div
                 role="button"
                 tabIndex={0}
                 onClick={() => abrirEdicion(vacante)}
-                onKeyDown={(e) => e.key === 'Enter' && abrirEdicion(vacante)}
-                className="cursor-pointer space-y-3"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    abrirEdicion(vacante)
+                  }
+                }}
+                className="flex-1 cursor-pointer space-y-4 p-5 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand-400"
                 title="Abrir para ver o modificar esta vacante"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="font-semibold text-slate-900">{vacante.titulo}</h3>
-                  <div className="flex shrink-0 gap-1.5">
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="text-base font-semibold leading-snug text-slate-900">
+                    {vacante.titulo}
+                  </h3>
+                  <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
                     <Badge tone={TONO_DE_ESTADO[vacante.estado]}>{vacante.estado}</Badge>
                     <Badge tone={vacante.visibilidad === 'publica' ? 'blue' : 'slate'}>
                       {vacante.visibilidad}
@@ -368,49 +399,52 @@ export function VacantesView() {
                   </div>
                 </div>
 
-                <p className="line-clamp-2 text-sm text-slate-600">{vacante.descripcion}</p>
+                {vacante.descripcion && (
+                  <p className="line-clamp-2 text-sm leading-relaxed text-slate-600">
+                    {vacante.descripcion}
+                  </p>
+                )}
 
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                  {vacante.remuneracion && <span>${Number(vacante.remuneracion).toFixed(2)}</span>}
-                  {vacante.hora_entrada && vacante.hora_salida && (
-                    <span>
-                      {vacante.hora_entrada.slice(0, 5)} – {vacante.hora_salida.slice(0, 5)}
-                    </span>
+                {/* Las condiciones, como etiquetas: en una fila de texto suelto se leían
+                    como una frase rota cuando faltaba alguna. */}
+                <div className="flex flex-wrap gap-1.5">
+                  {vacante.remuneracion && (
+                    <Dato icono={DollarSign}>{Number(vacante.remuneracion).toFixed(2)}</Dato>
                   )}
-                  {vacante.tipo_contrato_nombre && <span>{vacante.tipo_contrato_nombre}</span>}
-                  <span>{postulantes} postulante(s)</span>
+                  {vacante.hora_entrada && vacante.hora_salida && (
+                    <Dato icono={Clock}>
+                      {vacante.hora_entrada.slice(0, 5)} – {vacante.hora_salida.slice(0, 5)}
+                    </Dato>
+                  )}
+                  {vacante.tipo_contrato_nombre && (
+                    <Dato icono={FileText}>{vacante.tipo_contrato_nombre}</Dato>
+                  )}
+                  <Dato icono={Users}>
+                    {postulantes} {postulantes === 1 ? 'postulante' : 'postulantes'}
+                  </Dato>
                 </div>
 
-                <div className="flex items-center gap-2 text-xs">
-                  <span
-                    className={
-                      vacante.post_estado === 'error'
-                        ? 'text-red-600'
-                        : vacante.post_estado === 'publicado'
-                          ? 'text-green-600'
-                          : 'text-slate-500'
-                    }
-                  >
-                    {ETIQUETA_DEL_POST[vacante.post_estado]}
-                  </span>
+                <div className="flex items-center gap-2 border-t border-slate-100 pt-3 text-xs">
+                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${PUNTO_DEL_POST[vacante.post_estado]}`} />
+                  <span className="text-slate-600">{ETIQUETA_DEL_POST[vacante.post_estado]}</span>
                   {vacante.post_programado_para && vacante.post_estado === 'programado' && (
-                    <span className="text-slate-400">
+                    <span className="truncate text-slate-400">
                       · {new Date(vacante.post_programado_para).toLocaleString()}
                     </span>
                   )}
                 </div>
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+              <div className="flex flex-wrap gap-2 border-t border-slate-100 bg-slate-50 px-5 py-3">
                 <button
                   onClick={() => verVistaPrevia(vacante)}
-                  className="flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                  className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:text-slate-900"
                 >
                   <Eye size={13} /> Vista previa
                 </button>
                 <button
                   onClick={() => copiarEnlace(vacante)}
-                  className="flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                  className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:text-slate-900"
                 >
                   <Copy size={13} /> Enlace
                 </button>
@@ -418,7 +452,7 @@ export function VacantesView() {
                   <button
                     onClick={() => publicar(vacante)}
                     disabled={publicandoId === vacante.id}
-                    className="flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                    className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:text-slate-900 disabled:opacity-50"
                   >
                     {publicandoId === vacante.id ? (
                       <Loader2 size={13} className="animate-spin" />
@@ -432,21 +466,21 @@ export function VacantesView() {
                   <button
                     onClick={() => enviar(vacante)}
                     disabled={publicandoId === vacante.id}
-                    className="flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                    className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:text-slate-900 disabled:opacity-50"
                   >
                     <Mail size={13} /> Enviar interno
                   </button>
                 )}
                 <button
                   onClick={() => compartirWhatsApp(vacante.id)}
-                  className="flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                  className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:text-slate-900"
                 >
                   <MessageCircle size={13} /> WhatsApp
                 </button>
                 {vacante.estado !== 'cerrada' && (
                   <button
                     onClick={() => cambiarEstadoVacante(vacante.id, 'cerrada').catch((e) => toast.error(errorMessage(e)))}
-                    className="flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+                    className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-red-600 shadow-sm transition-colors hover:border-red-300 hover:bg-red-50"
                   >
                     Cerrar
                   </button>
