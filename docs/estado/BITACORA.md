@@ -8,6 +8,72 @@ una funcionalidad que funcione.
 
 ---
 
+## 2026-10-12 — Día 6 · La vacante pasa a ser una publicación (y S.1 cerrada)
+
+**Fases:** **S.1 CERRADA** (por fin), M1 ampliado al módulo de Vacantes.
+
+**S.1 primero, y esta vez no por disciplina sino por necesidad:** este trabajo guarda el
+secreto de LinkedIn y una contraseña de aplicación de Gmail en la base. Hacerlo con un
+`SECRET_KEY` publicado en GitHub habría sido regalar esos secretos.
+
+- `SECRET_KEY` ya no tiene valor por defecto: si falta, la aplicación **no arranca** y
+  `docker compose` se niega a levantar. Además rechaza los valores de ejemplo publicados.
+- De esa clave se deriva el cifrado (Fernet) de los secretos guardados. Contrapartida
+  explícita: **al rotar la clave hay que volver a introducirlos**.
+- El valor por defecto estaba en tres sitios (`config.py`, `docker-compose.yml`,
+  `.env.example`). Los tres limpios; `.env` real generado y fuera de git.
+
+**La vacante**
+- **El título deja de escribirse**: se elige el cargo y el título se copia de él. Es una
+  copia y no un `join` a propósito: de ahí sale el `slug`, que es la URL pública, y si
+  siguiera al catálogo, renombrar un cargo rompería los enlaces ya repartidos.
+- Tres conceptos que estaban mezclados en una columna ahora son tres: `estado`
+  (borrador/abierta/cerrada), `post_estado` (borrador/programado/publicado/error) y
+  `visibilidad` (pública/interna/mixta). Una vacante puede estar abierta con el post en
+  borrador, o publicada y ya cerrada.
+- Suma remuneración, jornada con entrada y salida, tipo de contrato (catálogo nuevo),
+  campos personalizados, asunto, imagen, programación y destinatarios internos.
+- **Primera subida real de archivos del proyecto** (migración 0006 + volumen `media_data`):
+  se valida el tipo por los bytes y no por la extensión, el tamaño leyendo a trozos, y el
+  nombre lo genera el servidor.
+
+**LinkedIn: lo que se puede y lo que no** (investigado, no supuesto)
+- El servicio anterior llamaba a `/v2/jobPostings`, que exige ser partner de Talent
+  Solutions: **nunca habría funcionado** con credenciales normales.
+- Reescrito a la única vía de autoservicio: productos *Sign In with LinkedIn (OIDC)* y
+  *Share on LinkedIn*, scope `w_member_social` → publica en **el muro del reclutador**.
+- Página de empresa y tablón de empleos siguen exigiendo aprobación de partner.
+- El token dura ~60 días y **no hay refresh token** fuera del programa de partners: la
+  pantalla avisa antes de que caduque y hay que reconectar.
+
+**Verificado**
+- **88 pruebas en verde** (eran 53). La creación de vacantes se centralizó en una fixture,
+  como se hizo con los cargos: cuando cambió aquel contrato el arreglo fue un archivo en
+  vez de cuatro.
+- `SECRET_KEY` con los dos controles: acepta la clave nueva (health 200) y rechaza tanto el
+  valor publicado como el vacío.
+- Migración 0006: conservó la vacante existente y tradujo `activa` → `abierta`.
+- En el navegador: jornada de 8 h con entrada 09:00 da salida 17:00, y al cambiar a 4 h
+  recalcula a 13:00. La etiqueta repetida avisa junto a la fila y deja de avisar al
+  corregirla.
+- En PostgreSQL: la vacante guardó título copiado del cargo, 1250.50, horario y los dos
+  campos adicionales con los acentos intactos.
+- **El secreto guardado desde la pantalla está cifrado en la columna** (`gAAAAA...`) y el
+  valor en claro aparece **0 veces** en la tabla. Las pruebas comprueban eso y no una ida
+  y vuelta, que pasaría igual con el secreto en texto plano.
+- Fuga cero y limpieza: la base quedó en 5 cargos, 1 vacante y 0 filas de configuración.
+
+**Pendiente / avisos**
+- 🔴 **La fecha programada se guarda pero nada publica solo a esa hora.** Falta el proceso
+  que lo ejecute; hoy hay que pulsar el botón. Está dicho en la propia pantalla.
+- 🔴 El envío interno necesita que configures Gmail; sin eso el botón explica qué falta.
+- LinkedIn queda en **modo simulado** hasta que crees la app y pegues las credenciales. El
+  resultado dice "simulado" en vez de fingir que salió a internet.
+- Rotar `SECRET_KEY` obliga a reintroducir los secretos guardados. Es la contrapartida de
+  no tener una segunda clave que administrar.
+
+---
+
 ## 2026-10-12 — Día 5 · Afinar el formulario de Cargos
 
 **Fase:** M1 otra vez, a petición del dueño. **S.1 sigue sin empezar**: la etapa 2 no se ha tocado.

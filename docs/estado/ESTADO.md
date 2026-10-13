@@ -1,24 +1,27 @@
 # Estado del proyecto — dónde estamos AHORA
 
-> Última actualización: **2026-10-12** · Días trabajados: **5** · Pruebas: **53 en verde**
+> Última actualización: **2026-10-12** · Días trabajados: **6** · Pruebas: **88 en verde**
 > Este archivo se lee al empezar cada sesión. Si algo aquí ya no es cierto, se corrige antes de seguir.
 
 ## En una línea
 
-La suite ya corre y está aislada de la base de desarrollo, y el **módulo de Cargos (M1) quedó
-rehecho** como descriptivo de puesto completo. Siguen abiertas las **5 puertas de seguridad** que
-impiden salir a internet: con destino de producción real, esa es la próxima etapa.
+**S.1 está cerrada**: `SECRET_KEY` ya no tiene valor por defecto y la aplicación no arranca sin
+ella. Los módulos de **Cargos (M1)** y **Vacantes** están rehechos: la vacante es ahora una
+publicación con estados, alcance y post. Quedan **4 puertas de seguridad** de las 5.
 
 ## Fase activa
 
 | | |
 |---|---|
-| **Fase** | `S.1 — Secretos fuera del código` |
+| **Fase** | `S.2 — El seed no debe correr en producción` |
 | **Etapa** | 2 de 6 — Bloqueantes de seguridad |
-| **Ojo** | Lleva **dos sesiones sin empezar**: los días 4 y 12 de octubre se dedicaron a M1 por petición del dueño. La etapa 2 sigue intacta. |
-| **Por qué esta** | `config.py:10` trae `SECRET_KEY` con valor por defecto, publicado en este repo. Con él se puede fabricar un token de super admin sin contraseña. |
-| **Terminada cuando** | Si falta `SECRET_KEY`, la app **no arranca**. El valor de producción se genera aparte y nunca se sube. |
+| **Por qué esta** | `main.py:18` corre el seed en cada arranque sin mirar el entorno: en un servidor real crearía un super admin con contraseña conocida y publicada. Es la misma clase de fallo que S.1, que ya se cerró. |
+| **Terminada cuando** | El seed solo corre si el entorno lo pide explícitamente, y nunca crea usuarios de demo fuera de desarrollo. |
 | **Antes hay que** | Levantar el entorno: `docker compose up -d`. |
+
+> ⚠️ **Si el entorno no levanta**: desde el día 6 hace falta un `.env` con `SECRET_KEY`. Copia
+> `.env.example` a `.env` y genera una con
+> `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
 
 ## El camino (6 etapas, 37 fases)
 
@@ -40,14 +43,14 @@ Leyenda: 🟢 base funcionando · 🟡 base funcionando con huecos conocidos · 
 
 | Módulo | Estado | Verificado | Siguiente fase | Etapa |
 |---|---|---|---|---|
-| **M1** Cargos, vacantes e integraciones | 🟢 | Cargos: crear, editar y activar/desactivar, **con pruebas**. Vacantes: crear (a mano) | M1.1 subir el documento | 3 |
+| **M1** Cargos, vacantes e integraciones | 🟢 | Cargos y vacantes: crear, editar y estados, **con pruebas**. Imagen del post y cifrado de secretos comprobados en la base | M1.6 publicar a la hora programada | 4 |
 | **M2** Portal público y parsing de CV | 🟡 | ❌ nada | M2.1 guardar el CV de verdad | 3 |
 | **M3** Pipeline de reclutamiento | 🟡 | Reglas de transición, **con pruebas** | M3.3 puntuación de coincidencia | 4 |
 | **M4** Directorio de contactos | 🟡 | Búsqueda, **con pruebas** | M4.1 exportar de verdad | 4 |
 | **M5** Evaluaciones | 🟡 | ❌ nada | M5.1 scorecard consolidado | 4 |
 | **M6** Dashboard | 🟡 | Carga y dibuja (a mano) | M6.1 volumen en el tiempo | 6 |
 | **M7** Usuarios y roles | 🟡 | Login y RBAC, **con pruebas** | M7.1 guardas de ruta | 4 |
-| **S** Seguridad | 🔴 | 4 fallos **confirmados** en el código | **S.1 secretos fuera del código** ⬅ activa | 2 |
+| **S** Seguridad | 🟡 | S.1 cerrada y verificada con control positivo y negativo. Quedan 3 fallos confirmados | **S.2 el seed en producción** ⬅ activa | 2 |
 | **T** Transversal | 🟢 | Suite corriendo, aislada y sin fuga | T.2 validar por mutación | 1 |
 
 ### Qué tiene hoy el módulo de Cargos (M1)
@@ -69,11 +72,31 @@ en el componente: los modales que ya son una confirmación cierran al primer cli
 La columna **Verificado** solo dice lo que se comprobó de verdad. "A mano" significa que una persona lo
 usó en el navegador: no es una prueba automática y no protege contra regresiones.
 
+### Qué tiene hoy el módulo de Vacantes
+
+Una vacante es **un cargo puesto en circulación**: se elige el cargo y el título sale de él. Lleva
+remuneración, horario (jornada + entrada, con la salida calculada), tipo de contrato y los campos
+adicionales que haga falta inventar.
+
+Tres cosas que se confunden y aquí son distintas: **estado** (borrador/abierta/cerrada), **estado del
+post** (borrador/programado/publicado/error) y **visibilidad** (pública/interna/mixta). Una vacante
+interna no aparece en el portal público aunque esté abierta y alguien tenga el enlace.
+
+La pantalla de **Configuración** guarda las credenciales de LinkedIn y Gmail **cifradas**, y no las
+devuelve nunca: muestra si están puestas y sus últimos cuatro caracteres.
+
 ## Lo más urgente, en una frase
 
-`SECRET_KEY` tiene un valor por defecto que está publicado en GitHub. Con él se puede **fabricar un
-token de super admin sin contraseña**. Mientras el sistema solo corra en tu equipo no hay riesgo, pero
-es lo primero que hay que cerrar antes de que esto toque internet (fase S.1).
+El seed corre en cada arranque sin mirar el entorno: en un servidor real **crearía un super admin con
+una contraseña que está publicada en este repositorio** (fase S.2).
+
+## Lo que necesita tu intervención
+
+| Qué | Por qué está parado |
+|---|---|
+| **App de LinkedIn** | Hay que crearla en developer.linkedin.com y pegar Client ID, Secret y Redirect URI en Configuración. Hasta entonces, publicar queda en **modo simulado** y lo dice. |
+| **Contraseña de aplicación de Gmail** | Con verificación en dos pasos activada, generarla en la cuenta de Google. Sin eso no hay envío interno. |
+| **Publicar a la hora programada** | La fecha se guarda, pero **nada la ejecuta todavía**: hoy hay que pulsar el botón. Necesita un proceso aparte (fase M1.6). |
 
 ## Entorno
 
