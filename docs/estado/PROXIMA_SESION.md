@@ -1,62 +1,104 @@
 # Arranque de la próxima sesión
 
-> Escrito al cerrar el **2026-10-02**. Si al leerlo ya no cuadra con el código, manda el código:
-> se corrige este archivo antes de seguir.
+> Escrito al cerrar el **2026-10-12** (sesión 6). Si al leerlo ya no cuadra con el código, manda el
+> código: se corrige este archivo antes de seguir.
+
+## 0. Antes de nada: hace falta un `.env`
+
+Desde esta sesión **el entorno no levanta sin `SECRET_KEY`**, y es a propósito: ese valor firma los
+JWT y antes venía con un valor por defecto publicado en GitHub.
+
+Ya existe un `.env` generado en tu equipo (está en `.gitignore`, no se sube). Si lo pierdes o
+trabajas en otra máquina:
+
+```bash
+cp .env.example .env
+```
+
+y pon dentro una clave propia:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+⚠️ Cambiar esa clave **invalida las sesiones abiertas** (habrá que volver a entrar) y **obliga a
+reintroducir los secretos guardados** en Configuración, porque de ella se deriva su cifrado.
 
 ## 1. Situarse (5 minutos)
 
 ```bash
-docker compose up -d                      # el entorno completo
-docker compose exec backend pytest -q     # deben salir 48 en verde
+docker compose up -d
 ```
 
-Si las pruebas no salen en verde, **eso es la sesión**: no se empieza nada nuevo sobre terreno que
-ya se movió.
+```bash
+docker compose exec backend pytest -q
+```
 
-Luego leer `ESTADO.md` (dónde estamos) y, de `FASES.md`, la etapa 2.
+Deben salir **97 en verde**. Si no, **eso es la sesión**: no se empieza nada nuevo sobre terreno
+que ya se movió.
 
-## 2. La fase que toca: S.1 — Secretos fuera del código
+Luego leer `ESTADO.md` y, de `FASES.md`, la etapa 2.
 
-Es la primera de la etapa 2 y la más grave de las cuatro puertas abiertas.
+## 2. La fase que toca: S.2 — El seed no debe correr en producción
 
-**El problema, medido:** `backend/app/core/config.py:10` trae
-`secret_key: str = "supersecretkey_ats_2026"`, y ese valor está publicado en este repo. Con él,
-cualquiera puede **firmar un token de super admin sin conocer ninguna contraseña**.
+**El problema, medido:** `backend/app/main.py:18` ejecuta el seed en **cada arranque, sin mirar el
+entorno**. En un servidor real crearía los tres usuarios de demo —incluido un `super_admin`— con la
+contraseña `Demo1234!`, que está publicada en este repositorio y en `CLAUDE.md`.
+
+Es la **misma clase de fallo que S.1**, que se cerró esta sesión: una credencial conocida que llega
+a producción sola.
 
 **Terminada cuando:**
-- `SECRET_KEY` no tiene valor por defecto: si falta, la aplicación **no arranca** y lo dice claro.
-- `docker-compose.yml` y `.env.example` dejan de traer el valor real; se documenta cómo generar uno.
-- Hay una prueba que comprueba que, sin `SECRET_KEY`, la configuración falla.
+- El seed solo corre si el entorno lo pide explícitamente (una variable, no una suposición).
+- Fuera de desarrollo **no crea usuarios de demo**, y si no hay ningún administrador lo dice en vez
+  de inventarse uno.
+- Hay una prueba que lo comprueba con los dos controles: que en desarrollo sí siembra y que con la
+  variable apagada no.
 
-**Cuidado con:** al quitar el valor por defecto, las pruebas y el arranque local necesitan uno. Que
-el fallo sea explícito y con mensaje útil, no un `KeyError` a medio arrancar.
+**Cuidado con:** las pruebas dependen de los usuarios de demo (`DEMO_USERS` en `conftest.py`). Lo
+que se apaga es el seed en producción, no el de las pruebas.
 
-**Después, en la misma etapa:** `S.2` (el seed no debe crear usuarios de demo fuera de desarrollo:
-hoy `main.py:18` lo hace en cada arranque sin mirar el entorno), `S.3` (límite de tamaño y tipo real
-en los archivos subidos) y `S.4` (límite de peticiones en el portal público).
+**Después, en la misma etapa:** `S.3` (límite de peticiones en el portal público) y `S.4`
+(revisar el resto de entradas sin límite). Nota: el límite de tamaño y de tipo real en archivos
+subidos **ya se hizo** esta sesión, al construir la subida de la imagen del post.
 
-## 3. Lo que quedó abierto del módulo de Cargos
+## 3. Lo que necesita que el dueño actúe
 
-Ninguna de estas bloquea la etapa 2; se recogen para que no se pierdan.
+Nada de esto lo puede resolver Claude solo.
 
-- **M1.5 — Devolver la gestión de preguntas filtro.** Se quitó de las tarjetas por petición del
-  dueño, y hoy **no hay forma de crear preguntas desde la aplicación**. El portal del candidato solo
-  mostrará las que creó el seed. Lo natural es traerlas como una sección más del modal de cargo.
-- **Contrastar las taxonomías.** Los niveles de educación (LOES) y las áreas académicas
-  (CINE-UNESCO) se sembraron de memoria en `backend/app/seed.py`. Conviene verificarlos contra la
-  fuente oficial vigente antes de que entren datos reales.
-- **Faltan secciones del modal.** El dueño dijo "faltan más ítems": hoy van siete bloques.
+| Qué | Para qué |
+|---|---|
+| **App de LinkedIn** | Crearla en developer.linkedin.com (requiere una Página de empresa), añadir los productos *Sign In with LinkedIn (OIDC)* y *Share on LinkedIn*, y pegar Client ID, Secret y Redirect URI en Configuración. Hasta entonces publicar queda en **modo simulado**, y lo dice. |
+| **Correo** | O una contraseña de aplicación de Gmail, o los datos del servidor SMTP institucional. Sin eso no hay envío interno. El botón "Probar conexión" valida sin enviar nada. |
 
-## 4. Decisiones que siguen pendientes del dueño
+## 4. Trabajo pendiente conocido
 
-1. ¿El repo sigue público? No es un problema en sí, pero obliga a cerrar la etapa 2 antes de desplegar.
+Ninguno bloquea la etapa 2; se recogen para que no se pierdan.
+
+- **M1.6 — Publicar a la hora programada.** La fecha se guarda, pero **nada la ejecuta**: hoy hay
+  que pulsar el botón. Necesita un proceso aparte (APScheduler en el propio backend es lo más
+  barato; ojo a que Docker tiene 3,7 GB para todo).
+- **M1.5 — Devolver la gestión de preguntas filtro.** Sigue sin haber forma de crearlas desde la
+  aplicación; el portal solo muestra las del seed.
+- **Contrastar las taxonomías.** Niveles de educación (LOES) y áreas académicas (CINE-UNESCO) se
+  sembraron de memoria en `backend/app/seed.py`.
+- **Correos de demo.** Siguen siendo `@atsdemo.com`. No se ven en la interfaz, pero chirrían ahora
+  que la aplicación es de la ANAI.
+- **Escudo a color.** El SVG actual es monocromo (`#20395f`), que es como lo dio el dueño. Una
+  versión a color mejoraría el acceso, que tiene fondo azul.
+
+## 5. Decisiones que siguen pendientes del dueño
+
+1. ¿El repo sigue público? Ya no hay secretos dentro, pero la contraseña de demo sí está.
 2. ¿Dónde se despliega? Sin eso no se puede detallar `D.1`.
-3. ¿Dónde se guardan los CVs? Cambia bastante cómo se hace `M2.1`.
+3. ¿Dónde se guardan los CVs? La imagen del post ya va a un volumen de Docker; lo natural es que
+   el CV siga el mismo camino, pero en un servidor real eso obliga a pensar en copias de seguridad.
 
-## 5. Cómo se cierra la sesión
+## 6. Cómo se cierra la sesión
 
 1. Actualizar `ESTADO.md` si cambió la fase activa o el estado de algún módulo.
 2. Anotar el día en `BITACORA.md`, separando **lo verificado** de lo que solo se escribió.
    Para no inventar: `git log --since=midnight --format="%h %s"`.
-3. Reescribir este archivo para la sesión siguiente.
-4. Commit y push.
+3. Borrar los datos de prueba que se hayan creado y comprobar el recuento en PostgreSQL.
+4. Reescribir este archivo para la sesión siguiente.
+5. Commit y push **a la rama de trabajo, nunca a `main`**.

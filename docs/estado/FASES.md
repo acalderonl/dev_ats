@@ -49,15 +49,19 @@ Sin esto, ninguna fase posterior se puede dar por buena: no hay forma de saber s
 
 # Etapa 2 — Bloqueantes de seguridad
 
-**Verificado en el código el 2026-10-01.** Nada de esta etapa es una precaución teórica: son cuatro
-puertas abiertas que hoy existen, y el repo es **público**. Mientras esta etapa no esté cerrada, el
-sistema no puede salir a internet.
+**Verificado en el código el 2026-10-01.** Nada de esta etapa es una precaución teórica: eran cuatro
+puertas abiertas que existían de verdad, y el repo es **público**. Mientras esta etapa no esté
+cerrada, el sistema no puede salir a internet.
+
+> **S.1 se cerró el 2026-10-12**, y no por disciplina: ese mismo día se construyó el guardado de
+> credenciales de terceros (LinkedIn, correo) en la base. Hacerlo con una clave de firma publicada
+> habría sido regalar esos secretos. De `SECRET_KEY` se deriva ahora su cifrado.
 
 | Fase | Qué | Terminada cuando | Estado |
 |---|---|---|---|
-| **S.1** | Secretos fuera del código | `SECRET_KEY` no tiene valor por defecto: si falta, la app **no arranca**. El valor de producción se genera aparte y nunca se sube. | pendiente |
-| **S.2** | El seed no crea usuarios demo fuera de desarrollo | Con `ENTORNO=produccion` el arranque no crea ninguna cuenta de demo; con prueba de los dos casos. | pendiente |
-| **S.3** | Validar los archivos que llegan | Tamaño máximo y tipo real comprobado (no solo la extensión); un archivo enorme o disfrazado se rechaza con 413/415. | pendiente |
+| **S.1** | Secretos fuera del código | `SECRET_KEY` no tiene valor por defecto: si falta, la app **no arranca**. El valor de producción se genera aparte y nunca se sube. | ✅ **hecha** (2026-10-12) |
+| **S.2** | El seed no crea usuarios demo fuera de desarrollo | Con `ENTORNO=produccion` el arranque no crea ninguna cuenta de demo; con prueba de los dos casos. | ⬅ **activa** |
+| **S.3** | Validar los archivos que llegan | Tamaño máximo y tipo real comprobado (no solo la extensión); un archivo enorme o disfrazado se rechaza con 413/415. | 🟡 **a medias**: la imagen del post sí (bytes + tamaño a trozos, 2026-10-12); el CV del portal público **sigue sin límite** |
 | **S.4** | Límite de peticiones en el portal público | Postular y analizar CV tienen límite por IP; con prueba de que el límite se aplica. | pendiente |
 | **S.5** | Datos personales: conservar y borrar | Se puede borrar por completo a un candidato que lo pida, y está escrito cuánto tiempo se guardan los datos. | pendiente |
 
@@ -83,8 +87,9 @@ información perdida que no se recupera.
 
 | Fase | Qué | Terminada cuando | Estado |
 |---|---|---|---|
-| **M2.1** | Guardar el CV de verdad | El archivo queda guardado y se puede descargar desde la ficha del candidato. Hoy `cv_documento_url` guarda el texto `pendiente-de-almacenamiento`: **el CV se lee, se analiza y se tira**. | pendiente |
-| **M1.1** | Subir el documento de la vacante | El `.pdf`/`.docx` se guarda y se puede volver a descargar (hoy el campo del formulario no sube nada). | pendiente |
+| **M2.1** | Guardar el CV de verdad | El archivo queda guardado y se puede descargar desde la ficha del candidato. Hoy `cv_documento_url` guarda el texto `pendiente-de-almacenamiento`: **el CV se lee, se analiza y se tira**. Desde el 2026-10-12 hay camino hecho: `almacenamiento_service` y el volumen `media_data` ya guardan la imagen del post. | pendiente |
+| **M1.1** | Subir el documento de la vacante | El `.pdf`/`.docx` se guarda y se puede volver a descargar (hoy el campo del formulario no sube nada). Mismo camino que M2.1. | pendiente |
+| **M1.6** | Publicar el post a la hora programada | Llegada la fecha de `post_programado_para`, el post sale **solo**. Hoy la fecha se guarda y no la ejecuta nadie: hay que pulsar el botón, y la pantalla lo advierte. Necesita un proceso aparte (APScheduler en el propio backend es lo más barato; Docker tiene 3,7 GB para todo). | pendiente (nueva, 2026-10-12) |
 | **T.6** | Build de producción verificado | La imagen construida desde cero arranca y responde, no el contenedor de desarrollo con recarga en caliente. | pendiente |
 
 # Etapa 4 — Lo que el sistema promete y no cumple

@@ -1,13 +1,14 @@
 # Estado del proyecto — dónde estamos AHORA
 
-> Última actualización: **2026-10-12** · Días trabajados: **6** · Pruebas: **88 en verde**
+> Última actualización: **2026-10-12** · Sesiones: **6** (en 5 días) · Pruebas: **97 en verde**
 > Este archivo se lee al empezar cada sesión. Si algo aquí ya no es cierto, se corrige antes de seguir.
 
 ## En una línea
 
 **S.1 está cerrada**: `SECRET_KEY` ya no tiene valor por defecto y la aplicación no arranca sin
 ella. Los módulos de **Cargos (M1)** y **Vacantes** están rehechos: la vacante es ahora una
-publicación con estados, alcance y post. Quedan **4 puertas de seguridad** de las 5.
+publicación con estados, alcance y post, y la aplicación lleva la **marca de la ANAI**. Quedan
+**4 puertas de seguridad** de las 5.
 
 ## Fase activa
 
@@ -82,8 +83,15 @@ Tres cosas que se confunden y aquí son distintas: **estado** (borrador/abierta/
 post** (borrador/programado/publicado/error) y **visibilidad** (pública/interna/mixta). Una vacante
 interna no aparece en el portal público aunque esté abierta y alguien tenga el enlace.
 
-La pantalla de **Configuración** guarda las credenciales de LinkedIn y Gmail **cifradas**, y no las
-devuelve nunca: muestra si están puestas y sus últimos cuatro caracteres.
+La pantalla de **Configuración** guarda las credenciales **cifradas** y no las devuelve nunca:
+muestra si están puestas y sus últimos cuatro caracteres. El correo admite **Gmail/Workspace o
+cualquier servidor SMTP institucional**, con un botón que prueba la conexión sin enviar nada.
+
+### La marca
+
+La aplicación es de la **Academia Naval Almirante Illingworth**: escudo, nombre y colores reales
+del sitio de la institución (`#0064b4` institucional, `#003462` franjas, `#20395f` escudo). El
+azul institucional vive en `brand-600` de Tailwind, que es lo que ya usaba toda la interfaz.
 
 ## Lo más urgente, en una frase
 

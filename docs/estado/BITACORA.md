@@ -8,9 +8,13 @@ una funcionalidad que funcione.
 
 ---
 
-## 2026-10-12 — Día 6 · La vacante pasa a ser una publicación (y S.1 cerrada)
+## 2026-10-12 — Día 6 · Vacantes como publicación, S.1 cerrada y marca ANAI
 
-**Fases:** **S.1 CERRADA** (por fin), M1 ampliado al módulo de Vacantes.
+> Sesión de tarde. Comparte fecha con el día 5: son **dos sesiones del mismo día**, no dos
+> días. El contador de "días trabajados" cuenta sesiones, y se corrigió en `ESTADO.md`.
+
+**Fases:** **S.1 CERRADA** (por fin), M1 ampliado al módulo de Vacantes, y la aplicación
+pasa a llevar la marca de la institución.
 
 **S.1 primero, y esta vez no por disciplina sino por necesidad:** este trabajo guarda el
 secreto de LinkedIn y una contraseña de aplicación de Gmail en la base. Hacerlo con un
@@ -63,14 +67,66 @@ secreto de LinkedIn y una contraseña de aplicación de Gmail en la base. Hacerl
   y vuelta, que pasaría igual con el secreto en texto plano.
 - Fuga cero y limpieza: la base quedó en 5 cargos, 1 vacante y 0 filas de configuración.
 
+**Correo: de solo Gmail a cualquier servidor**
+- Gmail era el único camino y no sirve para el correo institucional, que suele tener
+  servidor propio. Ahora se **elige el tipo de conexión**: Gmail/Workspace (servidor y
+  puerto fijos) o servidor propio (servidor, puerto, cifrado, remitente, usuario y clave).
+- Gmail es, por dentro, el caso particular del segundo con los valores ya puestos. Se
+  mantienen separados en pantalla porque lo que hay que pedirle a una persona es muy
+  distinto: una contraseña de aplicación frente a cinco datos de sistemas.
+- El **usuario se pregunta aparte del remitente**: hay servidores donde se entra con
+  `dominio\usuario` o con una cuenta de servicio.
+- Añadido **"Probar conexión"**: se conecta y autentica sin enviar nada. Sin eso, la única
+  forma de descubrir que la configuración estaba mal era mandar una vacante real a una
+  lista de correos de verdad.
+
+**La aplicación pasa a ser de la ANAI**
+- Escudo, nombre y colores de la Academia Naval Almirante Illingworth en lugar de "Sistema
+  ATS", también en el acceso y en las dos pantallas que ve el candidato.
+- **Los colores no se estimaron de una captura**: se leyeron los valores calculados del
+  propio anai.edu.ec. Institucional `#0064b4`, franjas `#003462`, acento `#1ea7fd`, claros
+  `#aad6ff` y `#ebf5ff`. El `#20395f` del escudo sale del propio SVG.
+- El institucional se colocó en `brand-600` a propósito: la interfaz ya usaba `brand-600`
+  para botones y acentos, así que **toda la aplicación cambió de color sin tocar clase por
+  clase**.
+
+**Corregido de esta misma sesión**
+- `Card` no trae padding propio —lo pone quien lo usa— y en las dos vistas nuevas se me
+  pasó: el contenido iba pegado al borde. Arreglado en Vacantes y Configuración, y
+  revisado el resto (el Dashboard lo usaba bien, con `CardHeader`/`CardBody`).
+- La tarjeta de vacante se reordenó: condiciones como etiquetas con icono, punto de color
+  para el estado del post y los botones en una barra inferior propia.
+
+**Verificado (segunda mitad de la sesión)**
+- **97 pruebas en verde** (de 88). Las nuevas cubren que la contraseña SMTP tampoco se
+  guarda en claro ni se devuelve, el puerto fuera de rango, y el tipo y cifrado inválidos.
+- Que **cambiar de tipo no borra las credenciales del otro**: probar el servidor propio y
+  volver a Gmail no puede costar reconfigurar Gmail.
+- Con los dos controles: puerto vacío + elegir SSL propone 465; con `2525` escrito a mano
+  **no lo pisa**. Probar contra un servidor inexistente informa del fallo sin romperse.
+- La marca, **midiendo y no mirando**: el botón principal calcula `#0064b4`, el título
+  `#20395f` y el fondo del acceso el degradado con los tres azules; el escudo carga en las
+  cuatro pantallas.
+
+**Errores propios que conviene recordar**
+- Tres veces seguidas rompí archivos con sustituciones multilínea de `perl`: corrompió
+  `types/index.ts`, `schemas/vacante.py` (dejó un campo obligatorio y tumbó 11 pruebas) y
+  la cabecera de `ESTADO.md`. Las tres se vieron enseguida porque `tsc` y `pytest` corren
+  después de cada cambio. **Para ediciones estructurales, edición exacta, no regex.**
+- Pulsé "Guardar" y "Probar conexión" a la vez y la prueba llegó antes del guardado: la
+  respuesta decía "Gmail" cuando ya había elegido SMTP. No era un fallo del producto sino
+  de cómo lo medí; se repitió la prueba en orden.
+
 **Pendiente / avisos**
 - 🔴 **La fecha programada se guarda pero nada publica solo a esa hora.** Falta el proceso
   que lo ejecute; hoy hay que pulsar el botón. Está dicho en la propia pantalla.
-- 🔴 El envío interno necesita que configures Gmail; sin eso el botón explica qué falta.
+- 🔴 El envío interno necesita que configures el correo; sin eso el botón explica qué falta.
 - LinkedIn queda en **modo simulado** hasta que crees la app y pegues las credenciales. El
   resultado dice "simulado" en vez de fingir que salió a internet.
 - Rotar `SECRET_KEY` obliga a reintroducir los secretos guardados. Es la contrapartida de
   no tener una segunda clave que administrar.
+- Los correos de demo siguen siendo `@atsdemo.com`: están en las pruebas y en `CLAUDE.md`,
+  y no se ven en la interfaz.
 
 ---
 
