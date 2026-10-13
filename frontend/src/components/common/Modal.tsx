@@ -40,7 +40,7 @@ export function Modal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/40" onClick={intentarCerrar} />
+      <div className="absolute inset-0" onClick={intentarCerrar} />
       <div
         className={`relative z-10 flex max-h-[90vh] w-full ${wide ? 'max-w-2xl' : 'max-w-md'} flex-col overflow-hidden rounded-xl bg-white shadow-xl`}
       >
@@ -58,7 +58,7 @@ export function Modal({
         <div className="overflow-y-auto p-5">{children}</div>
 
         {preguntando && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-900/40 p-5">
+          <div className="absolute inset-0 z-20 flex items-center justify-center p-5">
             <div className="w-full max-w-sm space-y-5 rounded-xl bg-white p-5 shadow-xl">
               <div>
                 <h3 className="text-base font-semibold text-slate-900">¿Cerrar sin guardar?</h3>
