@@ -4,7 +4,9 @@ import type {
   CatalogoItem,
   CatalogoTipo,
   Contacto,
+  EstadoDelPost,
   EstadoPipeline,
+  EstadoVacante,
   Evaluacion,
   Postulacion,
   Usuario,
@@ -13,7 +15,7 @@ import type {
 } from '@/types'
 import { cargosService, type CargoCreate } from '@/services/cargosService'
 import { catalogosService } from '@/services/catalogosService'
-import { vacantesService } from '@/services/vacantesService'
+import { vacantesService, type VacantePayload } from '@/services/vacantesService'
 import { postulacionesService } from '@/services/postulacionesService'
 import { contactosService } from '@/services/contactosService'
 import { usuariosService } from '@/services/usuariosService'
@@ -42,10 +44,13 @@ interface DataState {
   deleteCatalogoItem: (tipo: CatalogoTipo, id: number) => Promise<void>
 
   fetchVacantes: () => Promise<void>
-  createVacante: (data: { titulo: string; cargo_id: number; descripcion: string; fecha_limite: string }) => Promise<Vacante>
-  publishLinkedIn: (id: string) => Promise<void>
+  createVacante: (data: VacantePayload) => Promise<Vacante>
+  updateVacante: (id: string, data: VacantePayload) => Promise<Vacante>
+  cambiarEstadoVacante: (id: string, estado: EstadoVacante) => Promise<void>
+  cambiarEstadoDelPost: (id: string, estado: EstadoDelPost) => Promise<void>
+  publicarEnLinkedIn: (id: string) => Promise<{ simulado: boolean; mensaje: string }>
+  enviarInterno: (id: string) => Promise<string>
   shareWhatsApp: (id: string) => Promise<string>
-  cerrarVacante: (id: string) => Promise<void>
 
   fetchPostulaciones: (filters?: { vacante_id?: string }) => Promise<void>
   authorizePostulacion: (id: string) => Promise<void>
@@ -72,6 +77,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     'niveles-educacion': [],
     titulos: [],
     'areas-academicas': [],
+    'tipos-contrato': [],
   },
   vacantes: [],
   postulaciones: [],
@@ -121,17 +127,32 @@ export const useDataStore = create<DataState>((set, get) => ({
     set((s) => ({ vacantes: [vacante, ...s.vacantes] }))
     return vacante
   },
-  publishLinkedIn: async (id) => {
-    await vacantesService.publishLinkedIn(id)
+  updateVacante: async (id, data) => {
+    const vacante = await vacantesService.update(id, data)
+    set((s) => ({ vacantes: s.vacantes.map((v) => (v.id === id ? vacante : v)) }))
+    return vacante
+  },
+  cambiarEstadoVacante: async (id, estado) => {
+    const vacante = await vacantesService.cambiarEstado(id, estado)
+    set((s) => ({ vacantes: s.vacantes.map((v) => (v.id === id ? vacante : v)) }))
+  },
+  cambiarEstadoDelPost: async (id, estado) => {
+    const vacante = await vacantesService.cambiarEstadoDelPost(id, estado)
+    set((s) => ({ vacantes: s.vacantes.map((v) => (v.id === id ? vacante : v)) }))
+  },
+  publicarEnLinkedIn: async (id) => {
+    const resultado = await vacantesService.publicarEnLinkedIn(id)
     await get().fetchVacantes()
+    return { simulado: resultado.simulado, mensaje: resultado.mensaje }
+  },
+  enviarInterno: async (id) => {
+    const { mensaje } = await vacantesService.enviarInterno(id)
+    await get().fetchVacantes()
+    return mensaje
   },
   shareWhatsApp: async (id) => {
     const { whatsapp_url } = await vacantesService.shareWhatsApp(id)
     return whatsapp_url
-  },
-  cerrarVacante: async (id) => {
-    await vacantesService.cerrar(id)
-    await get().fetchVacantes()
   },
 
   fetchPostulaciones: async (filters) => set({ postulaciones: await postulacionesService.list(filters) }),

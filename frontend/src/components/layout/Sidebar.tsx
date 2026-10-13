@@ -8,6 +8,7 @@ import {
   ClipboardCheck,
   ShieldCheck,
   Building2,
+  Settings,
   X,
 } from 'lucide-react'
 import type { RolNombre } from '@/types'
@@ -27,6 +28,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/contactos', label: 'Contactos', icon: Users, roles: ['super_admin', 'reclutador'] },
   { to: '/evaluaciones', label: 'Evaluaciones', icon: ClipboardCheck, roles: ['super_admin', 'reclutador', 'entrevistador'] },
   { to: '/usuarios', label: 'Usuarios y Roles', icon: ShieldCheck, roles: ['super_admin'] },
+  { to: '/configuracion', label: 'Configuración', icon: Settings, roles: ['super_admin'] },
 ]
 
 export function Sidebar({

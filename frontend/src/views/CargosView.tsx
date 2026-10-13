@@ -29,6 +29,7 @@ const CATALOGO_TITULOS: Record<CatalogoTipo, string> = {
   'niveles-educacion': 'niveles de educación',
   titulos: 'títulos',
   'areas-academicas': 'áreas académicas',
+  'tipos-contrato': 'tipos de contrato',
 }
 
 /** Las actividades se reordenan al marcar favoritas, así que cada fila necesita una clave

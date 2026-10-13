@@ -67,13 +67,14 @@ export interface Cargo {
   activo: boolean
 }
 
-/** Los catálogos que alimentan los selectores del formulario de cargo. */
+/** Los catálogos que alimentan los selectores de los formularios. */
 export type CatalogoTipo =
   | 'nombres-cargo'
   | 'clasificaciones'
   | 'niveles-educacion'
   | 'titulos'
   | 'areas-academicas'
+  | 'tipos-contrato'
 
 /** Si el nivel de educación se exige terminado o basta con estar cursándolo. */
 export type EstadoEducacion = 'completa' | 'en_curso'
@@ -114,17 +115,45 @@ export interface PreguntaFiltro {
   respuesta_correcta: string | null
 }
 
-export type EstadoVacante = 'activa' | 'expirada' | 'cerrada'
+export type EstadoVacante = "borrador" | "abierta" | "cerrada"
+export type EstadoDelPost = "borrador" | "programado" | "publicado" | "error"
+export type VisibilidadVacante = "publica" | "interna" | "mixta"
+
+export interface CampoPersonalizado {
+  etiqueta: string
+  valor: string
+}
 
 export interface Vacante {
   id: string
-  titulo: string
   cargo_id: number
+  titulo: string
   descripcion: string
-  documento_adjunto_url: string | null
   slug: string
   fecha_limite: string
+
+  remuneracion: string | null
+  jornada_horas: string | null
+  hora_entrada: string | null
+  hora_salida: string | null
+  tipo_contrato_id: number | null
+  tipo_contrato_nombre: string | null
+  campos_personalizados: CampoPersonalizado[]
+
+  asunto: string | null
+  post_cuerpo: string | null
+  post_imagen_url: string | null
+  post_programado_para: string | null
+  post_estado: EstadoDelPost
+  post_publicado_en: string | null
+  post_error: string | null
   linkedin_post_id: string | null
+
+  visibilidad: VisibilidadVacante
+  destinatarios_internos: string[]
+  enviado_internamente_en: string | null
+
+  url_publica: string | null
   empleador_id: string
   estado: EstadoVacante
   creado_en: string
@@ -137,7 +166,50 @@ export interface VacantePublica {
   slug: string
   fecha_limite: string
   cargo_nombre: string
+  remuneracion: string | null
+  hora_entrada: string | null
+  hora_salida: string | null
+  tipo_contrato: string | null
+  campos_personalizados: CampoPersonalizado[]
   preguntas_filtro: PreguntaFiltro[]
+}
+
+export interface VistaPreviaDelPost {
+  asunto: string
+  cuerpo: string
+  imagen_url: string | null
+  enlace_para_postular: string
+  visibilidad: VisibilidadVacante
+  destinatarios_internos: string[]
+  programado_para: string | null
+  caracteres: number
+}
+
+export interface Jornada {
+  id: number
+  nombre: string
+  horas: string
+  activo: boolean
+}
+
+export interface ConfiguracionGeneral {
+  empresa_nombre: string | null
+  linkedin_client_id: string | null
+  linkedin_redirect_uri: string | null
+  gmail_remitente: string | null
+  dominios_corporativos: string | null
+  linkedin_client_secret_configurado: boolean
+  linkedin_client_secret_pista: string | null
+  gmail_password_app_configurado: boolean
+  gmail_password_app_pista: string | null
+}
+
+export interface EstadoLinkedIn {
+  credenciales_configuradas: boolean
+  cuenta_conectada: boolean
+  nombre_en_linkedin: string | null
+  expira_en: string | null
+  correo_configurado: boolean
 }
 
 export interface FormacionSecundaria {

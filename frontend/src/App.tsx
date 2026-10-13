@@ -8,6 +8,7 @@ import { PipelineView } from '@/views/PipelineView'
 import { ContactosView } from '@/views/ContactosView'
 import { EvaluacionesView } from '@/views/EvaluacionesView'
 import { UsuariosView } from '@/views/UsuariosView'
+import { ConfiguracionView } from '@/views/ConfiguracionView'
 import { PostularView } from '@/views/public/PostularView'
 import { VacanteExpiradaView } from '@/views/public/VacanteExpiradaView'
 
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/contactos" element={<ContactosView />} />
         <Route path="/evaluaciones" element={<EvaluacionesView />} />
         <Route path="/usuarios" element={<UsuariosView />} />
+        <Route path="/configuracion" element={<ConfiguracionView />} />
       </Route>
     </Routes>
   )
