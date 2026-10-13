@@ -44,11 +44,14 @@ export function Sidebar({
 
   const content = (
     <nav className="flex h-full flex-col gap-1 p-3">
-      <div className="flex items-center gap-2 px-2 py-3">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">
-          ATS
+      <div className="flex items-center gap-2.5 px-2 py-3">
+        <img src="/escudo-anai.svg" alt="" className="h-9 w-auto shrink-0" />
+        <div className="min-w-0">
+          <span className="block text-sm font-semibold leading-tight text-escudo">ANAI</span>
+          <span className="block truncate text-[11px] leading-tight text-slate-500">
+            Selección de personal
+          </span>
         </div>
-        <span className="text-sm font-semibold text-slate-800">Sistema ATS</span>
       </div>
       {items.map(({ to, label, icon: Icon }) => (
         <NavLink

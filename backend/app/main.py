@@ -21,7 +21,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Sistema ATS", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="ANAI - Seleccion de personal", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
