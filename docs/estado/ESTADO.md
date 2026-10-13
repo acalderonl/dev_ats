@@ -62,6 +62,10 @@ La educación formal admite **hasta dos** niveles, títulos y áreas; cada nivel
 (completa / en curso). La experiencia suma un checklist de tres exigencias. Al escribir una
 competencia parecida a una existente, **no se puede crear**: hay que elegir la que ya está.
 
+El modal mantiene la cabecera fija al hacer scroll y **pregunta antes de cerrarse** —con la X o
+con un clic fuera—, para que un descuido no borre las siete secciones. La pregunta es opcional
+en el componente: los modales que ya son una confirmación cierran al primer clic.
+
 La columna **Verificado** solo dice lo que se comprobó de verdad. "A mano" significa que una persona lo
 usó en el navegador: no es una prueba automática y no protege contra regresiones.
 

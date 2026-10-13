@@ -34,10 +34,34 @@ una funcionalidad que funcione.
 - La migración 0005 conservó la educación del cargo que ya la tenía.
 - Fuga cero: 5 cargos antes de la suite, 5 después.
 
+**También hoy — el modal deja de perder trabajo**
+- **La cabecera del modal ya no se va con el scroll.** El panel pasa a ser una columna: la
+  cabecera (título y X) queda fuera del área que hace scroll, en vez de desplazarse con el
+  contenido. En un formulario de siete secciones la salida estaba desapareciendo de la vista.
+- **Cerrar el formulario de cargo pregunta antes**, tanto con la X como haciendo clic fuera.
+  Antes, un clic fuera por accidente borraba las siete secciones sin aviso.
+- La pregunta es **opcional por diseño** (prop `confirmarCierre`): un modal que ya es él mismo
+  una confirmación —desactivar un cargo, gestionar un catálogo— no debe pedir confirmación para
+  cerrarse. Solo la activa el formulario de cargo.
+
+**Verificado (en el navegador, con los dos controles)**
+- Con el cuerpo scrolleado hasta la sección 7, la cabecera "Nuevo Cargo" y la X seguían en su sitio.
+- **Control positivo**: la X abre la pregunta y el modal no se cierra; el clic fuera, igual;
+  "Cancelar" vuelve al formulario intacto; "Sí, cerrar" cierra de verdad y no deja la pregunta
+  en pie para la próxima apertura.
+- **Control negativo**: la confirmación de desactivar un cargo sigue cerrándose al primer clic
+  fuera, sin preguntar. El cambio no se desbordó a los demás modales.
+- 5 cargos activos de 5 antes y después de la prueba: abrir y cerrar modales no tocó datos.
+- 53 pruebas en verde y `tsc --noEmit` limpio (el cambio es solo de frontend).
+
 **Pendiente / avisos**
 - 🔴 La etapa 2 (seguridad) sigue entera sin empezar. Ya van dos sesiones seguidas en M1.
 - El bloqueo por parecido usa un umbral de 0,55: dos competencias legítimamente distintas pero
   parecidas no se pueden crear. Si molesta, hay que subir el umbral o añadir una confirmación.
+- La pregunta de cierre salta **siempre**, aunque no se haya escrito nada. Si estorba, el paso
+  siguiente es comparar el formulario con su estado inicial y preguntar solo si hay cambios.
+- Los modales de Vacantes y Evaluaciones también son formularios y **siguen sin preguntar**:
+  basta añadirles la misma prop cuando se quiera.
 
 ---
 

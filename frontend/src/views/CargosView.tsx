@@ -398,6 +398,7 @@ export function CargosView() {
         }}
         title={cargoEnEdicion ? `Editar: ${cargoEnEdicion.nombre}` : 'Nuevo Cargo'}
         wide
+        confirmarCierre="Se perderá lo que hayas escrito en las siete secciones."
       >
         <form onSubmit={handleCreateCargo} className="space-y-6">
           <Seccion numero={1} titulo="Identificación del puesto">
