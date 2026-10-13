@@ -7,6 +7,7 @@ Ningún endpoint devuelve un secreto. Se devuelve si está configurado y una pis
 cuatro caracteres, que es lo justo para reconocerlo.
 """
 
+import smtplib
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -25,6 +26,7 @@ from app.schemas.configuracion import (
     JornadaCreate,
     JornadaOut,
     JornadaUpdate,
+    PruebaDeCorreo,
     UrlDeConexion,
 )
 from app.services import configuracion_service, correo_service, linkedin_service
@@ -55,6 +57,31 @@ def guardar_configuracion(
         configuracion_service.escribir(db, clave, valor)
     db.commit()
     return ConfiguracionOut(**configuracion_service.estado_de_configuracion(db))
+
+
+# -------------------------------------------------------------------------- Correo
+
+
+@router.post("/correo/probar", response_model=PruebaDeCorreo)
+def probar_correo(db: Session = Depends(get_db), _: Usuario = Depends(require_roles("super_admin"))) -> PruebaDeCorreo:
+    """Se conecta y autentica sin enviar nada.
+
+    Devuelve 200 con `ok: false` cuando la conexión falla, en vez de un error: que el
+    servidor rechace la contraseña es una respuesta legítima de esta prueba, no un
+    fallo de la aplicación. La pantalla muestra el motivo.
+    """
+    try:
+        return PruebaDeCorreo(ok=True, mensaje=correo_service.probar(db))
+    except correo_service.CorreoNoConfigurado as error:
+        return PruebaDeCorreo(ok=False, mensaje=str(error))
+    except smtplib.SMTPAuthenticationError:
+        return PruebaDeCorreo(
+            ok=False,
+            mensaje="El servidor rechazó el usuario o la contraseña. "
+            "En Gmail recuerda que debe ser una contraseña de aplicación, no la de la cuenta.",
+        )
+    except (OSError, smtplib.SMTPException) as error:
+        return PruebaDeCorreo(ok=False, mensaje=f"No se pudo conectar: {error}")
 
 
 # ------------------------------------------------------------------------ LinkedIn

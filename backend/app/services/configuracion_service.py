@@ -22,8 +22,16 @@ CLAVES = {
     "linkedin_client_id": False,
     "linkedin_client_secret": True,
     "linkedin_redirect_uri": False,
+    # Qué conexión de correo se usa: 'gmail' o 'smtp' (servidor propio).
+    "correo_tipo": False,
     "gmail_remitente": False,
     "gmail_password_app": True,
+    "smtp_servidor": False,
+    "smtp_puerto": False,
+    "smtp_cifrado": False,
+    "smtp_usuario": False,
+    "smtp_remitente": False,
+    "smtp_password": True,
     "dominios_corporativos": False,
 }
 

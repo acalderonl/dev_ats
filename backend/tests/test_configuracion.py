@@ -120,3 +120,92 @@ def test_jornada_de_cero_horas_se_rechaza(client, admin_headers):
         "/api/v1/configuracion/jornadas", json={"nombre": "Nula", "horas": "0"}, headers=admin_headers
     )
     assert respuesta.status_code == 422
+
+
+# --------------------------------------------------------- Conexión de correo
+
+
+def test_sin_elegir_tipo_se_asume_gmail(client, admin_headers):
+    """Lo que había antes era Gmail: no cambiar de conexión a quien ya lo tenía puesto."""
+    cuerpo = client.get("/api/v1/configuracion", headers=admin_headers).json()
+    assert cuerpo["correo_tipo"] in (None, "gmail")
+
+
+def test_tipo_de_correo_invalido_se_rechaza(client, admin_headers):
+    respuesta = client.put("/api/v1/configuracion", json={"correo_tipo": "paloma_mensajera"}, headers=admin_headers)
+    assert respuesta.status_code == 422
+
+
+def test_cifrado_smtp_invalido_se_rechaza(client, admin_headers):
+    respuesta = client.put("/api/v1/configuracion", json={"smtp_cifrado": "rot13"}, headers=admin_headers)
+    assert respuesta.status_code == 422
+
+
+def test_puerto_smtp_debe_ser_numero_en_rango(client, admin_headers):
+    assert (
+        client.put("/api/v1/configuracion", json={"smtp_puerto": "quinientos"}, headers=admin_headers).status_code
+        == 422
+    )
+    assert client.put("/api/v1/configuracion", json={"smtp_puerto": "99999"}, headers=admin_headers).status_code == 422
+    assert client.put("/api/v1/configuracion", json={"smtp_puerto": "587"}, headers=admin_headers).status_code == 200
+
+
+def test_la_contrasena_smtp_tampoco_se_guarda_en_claro(client, admin_headers):
+    client.put(
+        "/api/v1/configuracion", json={"smtp_password": "clave-del-servidor-institucional"}, headers=admin_headers
+    )
+
+    crudo = _valor_crudo_en_la_base("smtp_password")
+
+    assert crudo is not None
+    assert "clave-del-servidor-institucional" not in crudo
+
+
+def test_la_contrasena_smtp_no_se_devuelve(client, admin_headers):
+    client.put("/api/v1/configuracion", json={"smtp_password": "abcdefgh1234"}, headers=admin_headers)
+
+    cuerpo = client.get("/api/v1/configuracion", headers=admin_headers).json()
+
+    assert cuerpo["smtp_password"] is None
+    assert cuerpo["smtp_password_configurado"] is True
+    assert cuerpo["smtp_password_pista"] == "...1234"
+
+
+def test_cambiar_de_tipo_no_borra_las_credenciales_del_otro(client, admin_headers):
+    """Probar el servidor propio y volver a Gmail no puede costar reconfigurar Gmail."""
+    client.put(
+        "/api/v1/configuracion",
+        json={"correo_tipo": "gmail", "gmail_remitente": "rrhh@empresa.com", "gmail_password_app": "wxyz"},
+        headers=admin_headers,
+    )
+
+    client.put(
+        "/api/v1/configuracion",
+        json={"correo_tipo": "smtp", "smtp_servidor": "mail.empresa.com", "smtp_password": "otra"},
+        headers=admin_headers,
+    )
+
+    cuerpo = client.get("/api/v1/configuracion", headers=admin_headers).json()
+    assert cuerpo["correo_tipo"] == "smtp"
+    assert cuerpo["gmail_remitente"] == "rrhh@empresa.com"
+    assert cuerpo["gmail_password_app_configurado"] is True
+    assert cuerpo["smtp_password_configurado"] is True
+
+
+def test_probar_correo_sin_configurar_dice_que_falta(client, admin_headers):
+    """Devuelve 200 con ok=false: que falte configuración es una respuesta, no un error."""
+    client.put(
+        "/api/v1/configuracion",
+        json={"correo_tipo": "smtp", "smtp_servidor": "", "smtp_puerto": "", "smtp_password": ""},
+        headers=admin_headers,
+    )
+
+    respuesta = client.post("/api/v1/configuracion/correo/probar", headers=admin_headers)
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["ok"] is False
+    assert "SMTP" in respuesta.json()["mensaje"]
+
+
+def test_probar_correo_es_solo_de_super_admin(client, reclutador_headers):
+    assert client.post("/api/v1/configuracion/correo/probar", headers=reclutador_headers).status_code == 403

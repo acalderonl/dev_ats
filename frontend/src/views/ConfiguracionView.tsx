@@ -1,11 +1,17 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, Check, Clock, Linkedin, Loader2, Plus, Trash2 } from 'lucide-react'
+import { AlertTriangle, Check, Clock, Linkedin, Loader2, Plug, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card } from '@/components/common/Card'
 import { Badge } from '@/components/common/Badge'
 import { configuracionService } from '@/services/vacantesService'
 import { ApiError } from '@/lib/apiClient'
-import type { ConfiguracionGeneral, EstadoLinkedIn, Jornada } from '@/types'
+import type {
+  CifradoSmtp,
+  ConfiguracionGeneral,
+  EstadoLinkedIn,
+  Jornada,
+  TipoDeCorreo,
+} from '@/types'
 
 function errorMessage(err: unknown): string {
   return err instanceof ApiError ? err.message : 'Ocurrió un error inesperado'
@@ -104,6 +110,17 @@ export function ConfiguracionView() {
   // devuelven: aquí vacío significa "no lo toques", no "bórralo".
   const [edicion, setEdicion] = useState<Record<string, string>>({})
   const [jornadaNueva, setJornadaNueva] = useState({ nombre: '', horas: '' })
+  const [probando, setProbando] = useState(false)
+  const [resultadoPrueba, setResultadoPrueba] = useState<{ ok: boolean; mensaje: string } | null>(null)
+
+  // Sin elegir, Gmail: es lo que había antes de existir el selector, y no debe
+  // cambiarle la conexión a quien ya la tenía puesta.
+  const tipoDeCorreo = (edicion.correo_tipo || 'gmail') as TipoDeCorreo
+  const cifrado = (edicion.smtp_cifrado || 'starttls') as CifradoSmtp
+  const correoListo =
+    tipoDeCorreo === 'gmail'
+      ? config?.gmail_password_app_configurado && Boolean(config?.gmail_remitente)
+      : config?.smtp_password_configurado && Boolean(config?.smtp_servidor && config?.smtp_remitente)
 
   async function recargar() {
     const [c, e, j] = await Promise.all([
@@ -118,10 +135,17 @@ export function ConfiguracionView() {
       empresa_nombre: c.empresa_nombre ?? '',
       linkedin_client_id: c.linkedin_client_id ?? '',
       linkedin_redirect_uri: c.linkedin_redirect_uri ?? '',
+      correo_tipo: c.correo_tipo ?? 'gmail',
       gmail_remitente: c.gmail_remitente ?? '',
+      smtp_servidor: c.smtp_servidor ?? '',
+      smtp_puerto: c.smtp_puerto ?? '',
+      smtp_cifrado: c.smtp_cifrado ?? 'starttls',
+      smtp_usuario: c.smtp_usuario ?? '',
+      smtp_remitente: c.smtp_remitente ?? '',
       dominios_corporativos: c.dominios_corporativos ?? '',
       linkedin_client_secret: '',
       gmail_password_app: '',
+      smtp_password: '',
     })
   }
 
@@ -140,16 +164,29 @@ export function ConfiguracionView() {
     try {
       // Los secretos vacíos no se mandan: mandarlos los borraría.
       const payload = { ...edicion }
-      for (const clave of ['linkedin_client_secret', 'gmail_password_app']) {
+      for (const clave of ['linkedin_client_secret', 'gmail_password_app', 'smtp_password']) {
         if (!payload[clave]) delete payload[clave]
       }
       await configuracionService.guardar(payload)
       await recargar()
+      setResultadoPrueba(null)
       toast.success('Configuración guardada')
     } catch (err) {
       toast.error(errorMessage(err))
     } finally {
       setGuardando(false)
+    }
+  }
+
+  async function probarCorreo() {
+    setProbando(true)
+    setResultadoPrueba(null)
+    try {
+      setResultadoPrueba(await configuracionService.probarCorreo())
+    } catch (err) {
+      setResultadoPrueba({ ok: false, mensaje: errorMessage(err) })
+    } finally {
+      setProbando(false)
     }
   }
 
@@ -326,29 +363,169 @@ export function ConfiguracionView() {
 
       <Card className="p-5 sm:p-6">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-slate-800">Correo (Gmail / Google Workspace)</h2>
-          {config.gmail_password_app_configurado ? (
-            <Badge tone="green">Configurado</Badge>
-          ) : (
-            <Badge tone="slate">Sin configurar</Badge>
-          )}
+          <h2 className="text-sm font-semibold text-slate-800">Correo</h2>
+          {correoListo ? <Badge tone="green">Configurado</Badge> : <Badge tone="slate">Sin configurar</Badge>}
         </div>
-        <div className="space-y-4">
-          <Campo
-            etiqueta="Correo remitente"
-            valor={edicion.gmail_remitente ?? ''}
-            onChange={(v) => actualizar('gmail_remitente', v)}
-            placeholder="talento@empresa.com"
-          />
-          <CampoSecreto
-            etiqueta="Contraseña de aplicación"
-            valor={edicion.gmail_password_app ?? ''}
-            onChange={(v) => actualizar('gmail_password_app', v)}
-            configurado={config.gmail_password_app_configurado}
-            pista={config.gmail_password_app_pista}
-            ayuda="No es la contraseña de la cuenta. Con la verificación en dos pasos activada, genérala en la cuenta de Google (16 caracteres)."
-          />
+
+        {/* Se eligen los dos por separado porque lo que hay que pedirle a una persona
+            es distinto: para Gmail, una contraseña de aplicación; para un servidor
+            propio, cinco datos que le tiene que dar su departamento de sistemas. */}
+        <div className="mb-5 grid grid-cols-2 gap-3">
+          {(
+            [
+              ['gmail', 'Gmail / Workspace', 'Servidor y puerto ya puestos'],
+              ['smtp', 'Servidor propio', 'Correo institucional, cualquier SMTP'],
+            ] as [TipoDeCorreo, string, string][]
+          ).map(([valor, titulo, detalle]) => (
+            <button
+              key={valor}
+              type="button"
+              onClick={() => actualizar('correo_tipo', valor)}
+              className={`rounded-lg border p-3 text-left transition-colors ${
+                tipoDeCorreo === valor
+                  ? 'border-brand-500 bg-brand-50'
+                  : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              <span
+                className={`block text-sm font-medium ${
+                  tipoDeCorreo === valor ? 'text-brand-700' : 'text-slate-700'
+                }`}
+              >
+                {titulo}
+              </span>
+              <span className="mt-0.5 block text-xs text-slate-500">{detalle}</span>
+            </button>
+          ))}
         </div>
+
+        {tipoDeCorreo === 'gmail' ? (
+          <div className="space-y-4">
+            <Campo
+              etiqueta="Correo remitente"
+              valor={edicion.gmail_remitente ?? ''}
+              onChange={(v) => actualizar('gmail_remitente', v)}
+              placeholder="talento@empresa.com"
+            />
+            <CampoSecreto
+              etiqueta="Contraseña de aplicación"
+              valor={edicion.gmail_password_app ?? ''}
+              onChange={(v) => actualizar('gmail_password_app', v)}
+              configurado={config.gmail_password_app_configurado}
+              pista={config.gmail_password_app_pista}
+              ayuda="No es la contraseña de la cuenta. Con la verificación en dos pasos activada, genérala en la cuenta de Google (16 caracteres)."
+            />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="col-span-2">
+                <Campo
+                  etiqueta="Servidor"
+                  valor={edicion.smtp_servidor ?? ''}
+                  onChange={(v) => actualizar('smtp_servidor', v)}
+                  placeholder="mail.institucion.edu.ec"
+                />
+              </div>
+              <Campo
+                etiqueta="Puerto"
+                valor={edicion.smtp_puerto ?? ''}
+                onChange={(v) => actualizar('smtp_puerto', v)}
+                placeholder="587"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Cifrado</label>
+              <div className="grid grid-cols-3 gap-2">
+                {(
+                  [
+                    ['starttls', 'STARTTLS', '587'],
+                    ['ssl', 'SSL/TLS', '465'],
+                    ['ninguna', 'Ninguno', '25'],
+                  ] as [CifradoSmtp, string, string][]
+                ).map(([valor, titulo, puerto]) => (
+                  <button
+                    key={valor}
+                    type="button"
+                    onClick={() => {
+                      actualizar('smtp_cifrado', valor)
+                      // El puerto casi siempre va con el cifrado. Se propone, no se impone:
+                      // solo se rellena si está vacío, para no pisar un puerto a medida.
+                      if (!edicion.smtp_puerto) actualizar('smtp_puerto', puerto)
+                    }}
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+                      cifrado === valor
+                        ? 'border-brand-500 bg-brand-50 text-brand-700'
+                        : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {titulo}
+                  </button>
+                ))}
+              </div>
+              {cifrado === 'ninguna' && (
+                <p className="mt-1 flex items-start gap-1.5 text-xs text-amber-700">
+                  <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                  Sin cifrado la contraseña viaja en claro por la red. Úsalo solo en un servidor
+                  interno y de confianza.
+                </p>
+              )}
+            </div>
+
+            <Campo
+              etiqueta="Correo remitente"
+              valor={edicion.smtp_remitente ?? ''}
+              onChange={(v) => actualizar('smtp_remitente', v)}
+              placeholder="talento@institucion.edu.ec"
+              ayuda="La dirección desde la que llegará el correo."
+            />
+            <Campo
+              etiqueta="Usuario (opcional)"
+              valor={edicion.smtp_usuario ?? ''}
+              onChange={(v) => actualizar('smtp_usuario', v)}
+              placeholder="Déjalo vacío si es el mismo que el remitente"
+              ayuda="Algunos servidores piden entrar con otra cuenta, por ejemplo dominio\\usuario."
+            />
+            <CampoSecreto
+              etiqueta="Contraseña"
+              valor={edicion.smtp_password ?? ''}
+              onChange={(v) => actualizar('smtp_password', v)}
+              configurado={config.smtp_password_configurado}
+              pista={config.smtp_password_pista}
+            />
+          </div>
+        )}
+
+        <div className="mt-5 flex items-center gap-3 border-t border-slate-100 pt-4">
+          <p className="flex-1 text-xs text-slate-500">
+            Se conecta y autentica sin enviar nada. Guarda antes de probar.
+          </p>
+          <button
+            type="button"
+            onClick={probarCorreo}
+            disabled={probando}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {probando ? <Loader2 size={13} className="animate-spin" /> : <Plug size={13} />}
+            Probar conexión
+          </button>
+        </div>
+
+        {resultadoPrueba && (
+          <p
+            className={`mt-3 flex items-start gap-1.5 rounded-lg p-3 text-xs ${
+              resultadoPrueba.ok ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-800'
+            }`}
+          >
+            {resultadoPrueba.ok ? (
+              <Check size={14} className="mt-0.5 shrink-0" />
+            ) : (
+              <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            )}
+            {resultadoPrueba.mensaje}
+          </p>
+        )}
       </Card>
 
       <Card className="p-5 sm:p-6">

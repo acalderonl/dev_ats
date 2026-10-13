@@ -54,6 +54,7 @@ export const configuracionService = {
   estadoLinkedIn: () => apiGet<EstadoLinkedIn>('/configuracion/linkedin/estado'),
   conectarLinkedIn: () => apiPost<{ url: string; state: string }>('/configuracion/linkedin/conectar'),
   desconectarLinkedIn: () => apiDelete<void>('/configuracion/linkedin/desconectar'),
+  probarCorreo: () => apiPost<{ ok: boolean; mensaje: string }>('/configuracion/correo/probar'),
   jornadas: () => apiGet<Jornada[]>('/configuracion/jornadas'),
   crearJornada: (data: { nombre: string; horas: string }) =>
     apiPost<Jornada>('/configuracion/jornadas', data),

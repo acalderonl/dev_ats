@@ -192,16 +192,28 @@ export interface Jornada {
   activo: boolean
 }
 
+/** Cómo se conecta el sistema para enviar correo. */
+export type TipoDeCorreo = 'gmail' | 'smtp'
+export type CifradoSmtp = 'ssl' | 'starttls' | 'ninguna'
+
 export interface ConfiguracionGeneral {
   empresa_nombre: string | null
   linkedin_client_id: string | null
   linkedin_redirect_uri: string | null
+  correo_tipo: TipoDeCorreo | null
   gmail_remitente: string | null
+  smtp_servidor: string | null
+  smtp_puerto: string | null
+  smtp_cifrado: CifradoSmtp | null
+  smtp_usuario: string | null
+  smtp_remitente: string | null
   dominios_corporativos: string | null
   linkedin_client_secret_configurado: boolean
   linkedin_client_secret_pista: string | null
   gmail_password_app_configurado: boolean
   gmail_password_app_pista: string | null
+  smtp_password_configurado: boolean
+  smtp_password_pista: string | null
 }
 
 export interface EstadoLinkedIn {

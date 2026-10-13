@@ -3,6 +3,9 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.services.correo_service import CIFRADOS as CIFRADOS_SMTP
+from app.services.correo_service import TIPOS as TIPOS_DE_CORREO
+
 
 class ConfiguracionUpdate(BaseModel):
     """Todo opcional: un campo ausente no se toca.
@@ -16,16 +19,56 @@ class ConfiguracionUpdate(BaseModel):
     linkedin_client_id: str | None = None
     linkedin_client_secret: str | None = None
     linkedin_redirect_uri: str | None = None
+    correo_tipo: str | None = None
     gmail_remitente: str | None = None
     gmail_password_app: str | None = None
+    smtp_servidor: str | None = None
+    smtp_puerto: str | None = None
+    smtp_cifrado: str | None = None
+    smtp_usuario: str | None = None
+    smtp_remitente: str | None = None
+    smtp_password: str | None = None
     dominios_corporativos: str | None = None
+
+    @field_validator("correo_tipo")
+    @classmethod
+    def tipo_conocido(cls, v: str | None) -> str | None:
+        if v and v not in TIPOS_DE_CORREO:
+            raise ValueError(f"Tipo de correo inválido: {v}. Debe ser uno de {', '.join(TIPOS_DE_CORREO)}")
+        return v
+
+    @field_validator("smtp_cifrado")
+    @classmethod
+    def cifrado_conocido(cls, v: str | None) -> str | None:
+        if v and v not in CIFRADOS_SMTP:
+            raise ValueError(f"Cifrado inválido: {v}. Debe ser uno de {', '.join(CIFRADOS_SMTP)}")
+        return v
+
+    @field_validator("smtp_puerto")
+    @classmethod
+    def puerto_valido(cls, v: str | None) -> str | None:
+        if not v:
+            return v
+        try:
+            numero = int(v)
+        except ValueError:
+            raise ValueError("El puerto SMTP debe ser un número")
+        if not 1 <= numero <= 65535:
+            raise ValueError("El puerto SMTP debe estar entre 1 y 65535")
+        return str(numero)
 
 
 class ConfiguracionOut(BaseModel):
     empresa_nombre: str | None = None
     linkedin_client_id: str | None = None
     linkedin_redirect_uri: str | None = None
+    correo_tipo: str | None = None
     gmail_remitente: str | None = None
+    smtp_servidor: str | None = None
+    smtp_puerto: str | None = None
+    smtp_cifrado: str | None = None
+    smtp_usuario: str | None = None
+    smtp_remitente: str | None = None
     dominios_corporativos: str | None = None
 
     # Los secretos se informan, no se devuelven.
@@ -35,6 +78,14 @@ class ConfiguracionOut(BaseModel):
     gmail_password_app: None = None
     gmail_password_app_configurado: bool = False
     gmail_password_app_pista: str | None = None
+    smtp_password: None = None
+    smtp_password_configurado: bool = False
+    smtp_password_pista: str | None = None
+
+
+class PruebaDeCorreo(BaseModel):
+    ok: bool
+    mensaje: str
 
 
 class EstadoLinkedIn(BaseModel):
