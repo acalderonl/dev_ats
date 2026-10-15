@@ -36,18 +36,38 @@ NIVEL_KEYWORDS: list[tuple[str, str]] = [
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".doc"}
 
 
+ARCHIVO_ILEGIBLE = "El archivo está dañado o no es un {formato} válido. Vuelve a exportarlo e inténtalo de nuevo."
+
+
 def _extract_text_from_pdf(raw: bytes) -> str:
-    text_chunks: list[str] = []
-    with pdfplumber.open(io.BytesIO(raw)) as pdf:
-        for page in pdf.pages:
-            page_text = page.extract_text() or ""
-            text_chunks.append(page_text)
-    return "\n".join(text_chunks)
+    """Un PDF roto es un error del usuario, no del servidor: 422 y no 500."""
+    try:
+        text_chunks: list[str] = []
+        with pdfplumber.open(io.BytesIO(raw)) as pdf:
+            for page in pdf.pages:
+                text_chunks.append(page.extract_text() or "")
+        return "\n".join(text_chunks)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=ARCHIVO_ILEGIBLE.format(formato="PDF"),
+        )
 
 
 def _extract_text_from_docx(raw: bytes) -> str:
-    with io.BytesIO(raw) as buffer:
-        return docx2txt.process(buffer) or ""
+    """Un `.docx` es un zip. Si no lo es, `docx2txt` lanza `BadZipFile`.
+
+    Sin este try el fallo salía como 500, que le dice al candidato que el problema
+    es nuestro cuando el archivo es suyo.
+    """
+    try:
+        with io.BytesIO(raw) as buffer:
+            return docx2txt.process(buffer) or ""
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=ARCHIVO_ILEGIBLE.format(formato="Word (.docx)"),
+        )
 
 
 def _guess_nombres_apellidos(lines: list[str]) -> tuple[str | None, str | None]:
@@ -114,7 +134,19 @@ def parse_cv_text(raw_text: str) -> CvParseadoOut:
     )
 
 
-async def parse_cv_upload(file: UploadFile) -> CvParseadoOut:
+MAXIMO_BYTES_DEL_CV = 15 * 1024 * 1024
+
+
+async def extraer_texto_de_cv(file: UploadFile) -> tuple[bytes, str, bool]:
+    """Valida el archivo y devuelve (bytes, texto, es_pdf).
+
+    Separado de `parse_cv_upload` porque la lectura con Claude necesita **los bytes**
+    del PDF, no el texto aplanado: un CV a dos columnas pierde el orden de lectura al
+    extraerle el texto, y las fechas se despegan de su empleo.
+
+    El tope de tamaño se comprueba aquí y no en el router porque este es el único
+    sitio por el que entra un CV, venga de donde venga.
+    """
     filename = (file.filename or "").lower()
     extension = next((ext for ext in SUPPORTED_EXTENSIONS if filename.endswith(ext)), None)
     if extension is None:
@@ -124,6 +156,11 @@ async def parse_cv_upload(file: UploadFile) -> CvParseadoOut:
         )
 
     raw = await file.read()
+    if len(raw) > MAXIMO_BYTES_DEL_CV:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"El archivo pasa de {MAXIMO_BYTES_DEL_CV // (1024 * 1024)} MB.",
+        )
 
     if extension == ".pdf":
         text = _extract_text_from_pdf(raw)
@@ -137,10 +174,23 @@ async def parse_cv_upload(file: UploadFile) -> CvParseadoOut:
             detail="El formato .doc no puede analizarse automáticamente. Convierte el archivo a .docx o .pdf.",
         )
 
-    if not text.strip():
+    # Un PDF escaneado sí puede leerlo Claude (ve la página), así que la falta de
+    # texto solo es fatal cuando no hay a quién mandarle el documento entero.
+    if not text.strip() and extension != ".pdf":
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="No se pudo extraer texto del documento. Verifica que no sea un escaneo de imagen.",
         )
 
+    return raw, text, extension == ".pdf"
+
+
+async def parse_cv_upload(file: UploadFile) -> CvParseadoOut:
+    """Extracción solo con heurísticas. Se mantiene por compatibilidad."""
+    _, text, es_pdf = await extraer_texto_de_cv(file)
+    if not text.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No se pudo extraer texto del documento. Verifica que no sea un escaneo de imagen.",
+        )
     return parse_cv_text(text)

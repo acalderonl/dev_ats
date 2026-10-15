@@ -5,7 +5,13 @@ def test_contacto_aparece_tras_postular(client, reclutador_headers, unique_suffi
     cedula = f"19{unique_suffix[:8]}"
     client.post(
         f"/api/v1/public/vacantes/{vacante['slug']}/postular",
-        json={"nombres": "Luis", "apellidos": "Torres", "cedula": cedula, "email": "luis.torres@example.com"},
+        json={
+            "nombres": "Luis",
+            "apellidos": "Torres",
+            "cedula": cedula,
+            "email": "luis.torres@example.com",
+            "acepta_privacidad": True,
+        },
     )
 
     response = client.get("/api/v1/contactos", params={"q": "Luis Torres"}, headers=reclutador_headers)

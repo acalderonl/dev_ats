@@ -10,6 +10,7 @@ def _crear_postulacion(client, reclutador_headers, unique_suffix, crear_cargo, c
             "apellidos": "Gómez",
             "cedula": f"18{unique_suffix[:8]}",
             "email": "ana.gomez@example.com",
+            "acepta_privacidad": True,
         },
     ).json()
 

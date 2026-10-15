@@ -86,6 +86,7 @@ def test_postular_a_vacante_expirada_devuelve_410(client, unique_suffix, crear_c
             "apellidos": "Pérez",
             "cedula": f"17{unique_suffix[:8]}",
             "email": "juan.perez@example.com",
+            "acepta_privacidad": True,
         },
     )
 

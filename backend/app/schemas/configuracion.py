@@ -29,6 +29,8 @@ class ConfiguracionUpdate(BaseModel):
     smtp_remitente: str | None = None
     smtp_password: str | None = None
     dominios_corporativos: str | None = None
+    anthropic_api_key: str | None = None
+    anthropic_modelo: str | None = None
 
     @field_validator("correo_tipo")
     @classmethod
@@ -70,6 +72,7 @@ class ConfiguracionOut(BaseModel):
     smtp_usuario: str | None = None
     smtp_remitente: str | None = None
     dominios_corporativos: str | None = None
+    anthropic_modelo: str | None = None
 
     # Los secretos se informan, no se devuelven.
     linkedin_client_secret: None = None
@@ -81,6 +84,9 @@ class ConfiguracionOut(BaseModel):
     smtp_password: None = None
     smtp_password_configurado: bool = False
     smtp_password_pista: str | None = None
+    anthropic_api_key: None = None
+    anthropic_api_key_configurado: bool = False
+    anthropic_api_key_pista: str | None = None
 
 
 class PruebaDeCorreo(BaseModel):

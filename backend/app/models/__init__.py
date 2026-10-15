@@ -13,6 +13,11 @@ from app.models.jornada import Jornada
 from app.models.configuracion import Configuracion
 from app.models.vacante import TokenLinkedIn, Vacante
 from app.models.postulante import Postulante
+from app.models.postulante_perfil import (
+    PostulanteEducacion,
+    PostulanteExperiencia,
+    PostulanteIdioma,
+)
 from app.models.postulacion import Postulacion
 from app.models.evaluacion import Evaluacion
 
@@ -38,6 +43,9 @@ __all__ = [
     "Vacante",
     "TokenLinkedIn",
     "Postulante",
+    "PostulanteEducacion",
+    "PostulanteIdioma",
+    "PostulanteExperiencia",
     "Postulacion",
     "Evaluacion",
 ]

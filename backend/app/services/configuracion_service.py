@@ -33,6 +33,10 @@ CLAVES = {
     "smtp_remitente": False,
     "smtp_password": True,
     "dominios_corporativos": False,
+    # Lectura automática del CV. El modelo es configurable para poder bajar a uno
+    # más barato si el volumen crece.
+    "anthropic_api_key": True,
+    "anthropic_modelo": False,
 }
 
 LARGO_DE_LA_PISTA = 4
