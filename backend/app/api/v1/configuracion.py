@@ -10,6 +10,8 @@ cuatro caracteres, que es lo justo para reconocerlo.
 import smtplib
 from datetime import datetime, timezone
 
+import httpx
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -27,6 +29,7 @@ from app.schemas.configuracion import (
     JornadaOut,
     JornadaUpdate,
     PruebaDeCorreo,
+    RetornoDeLinkedIn,
     UrlDeConexion,
 )
 from app.services import configuracion_service, correo_service, linkedin_service
@@ -103,13 +106,55 @@ def estado_de_linkedin(db: Session = Depends(get_db), usuario: Usuario = Depends
 
 @router.post("/linkedin/conectar", response_model=UrlDeConexion)
 def iniciar_conexion(
-    db: Session = Depends(get_db), _: Usuario = Depends(require_roles("super_admin", "reclutador"))
+    db: Session = Depends(get_db), usuario: Usuario = Depends(require_roles("super_admin", "reclutador"))
 ) -> UrlDeConexion:
     try:
-        url, state = linkedin_service.url_de_autorizacion(db)
+        url, state = linkedin_service.url_de_autorizacion(db, usuario.id)
     except linkedin_service.LinkedInNoConfigurado as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
     return UrlDeConexion(url=url, state=state)
+
+
+@router.post("/linkedin/callback", response_model=EstadoLinkedIn)
+def terminar_conexion(
+    payload: RetornoDeLinkedIn,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_roles("super_admin", "reclutador")),
+) -> EstadoLinkedIn:
+    """Cambia el código que devolvió LinkedIn por un token y lo guarda cifrado.
+
+    Lo llama el frontend, no LinkedIn: LinkedIn redirige el navegador a una página
+    de la aplicación, y esa página manda aquí el código con la sesión del usuario.
+    Así el token queda atado a quien de verdad inició la conexión.
+    """
+    try:
+        linkedin_service.verificar_state(payload.state, usuario.id)
+    except linkedin_service.StateInvalido as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
+
+    try:
+        datos = linkedin_service.canjear_codigo(db, payload.code)
+    except linkedin_service.LinkedInNoConfigurado as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
+    except httpx.HTTPError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"LinkedIn no aceptó la conexión: {error}",
+        )
+
+    cifrado = configuracion_service.cifrador().encrypt(datos["access_token"].encode()).decode()
+    token = db.get(TokenLinkedIn, usuario.id)
+    if token is None:
+        token = TokenLinkedIn(usuario_id=usuario.id)
+        db.add(token)
+    token.access_token_cifrado = cifrado
+    token.persona_urn = datos["persona_urn"]
+    token.nombre_en_linkedin = datos["nombre"]
+    token.expira_en = datos["expira_en"]
+    token.revocado = False
+    db.commit()
+
+    return estado_de_linkedin(db=db, usuario=usuario)
 
 
 @router.delete("/linkedin/desconectar", status_code=status.HTTP_204_NO_CONTENT)

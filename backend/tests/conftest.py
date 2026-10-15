@@ -53,6 +53,25 @@ from app.main import app  # noqa: E402
 from app.seed import DEMO_USERS  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _configuracion_vacia():
+    """Cada prueba arranca sin nada configurado.
+
+    Casi todas las tablas se pueden compartir entre pruebas porque cada una crea sus
+    propias filas con un sufijo único. `configuracion` no: es clave-valor **global**,
+    así que solo hay un `linkedin_client_id` para toda la suite. Sin esto, una prueba
+    que configura LinkedIn hace que otra, que comprueba el modo simulado, vea
+    credenciales y tome el camino equivocado.
+
+    Es además el estado real de una instalación recién puesta, que es desde donde
+    conviene que empiece cada prueba.
+    """
+    yield
+    with engine.begin() as conexion:
+        conexion.execute(text("DELETE FROM configuracion"))
+        conexion.execute(text("DELETE FROM tokens_linkedin"))
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _base_limpia():
     """Cada ejecución arranca con la base de pruebas vacía y migrada.

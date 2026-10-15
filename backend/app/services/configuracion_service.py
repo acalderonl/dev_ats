@@ -38,7 +38,7 @@ CLAVES = {
 LARGO_DE_LA_PISTA = 4
 
 
-def _cifrador() -> Fernet:
+def cifrador() -> Fernet:
     return Fernet(get_settings().clave_de_cifrado())
 
 
@@ -57,7 +57,7 @@ def escribir(db: Session, clave: str, valor: str | None) -> None:
     if not limpio:
         almacenado = None
     elif es_secreto:
-        almacenado = _cifrador().encrypt(limpio.encode()).decode()
+        almacenado = cifrador().encrypt(limpio.encode()).decode()
     else:
         almacenado = limpio
 
@@ -85,7 +85,7 @@ def leer_secreto(db: Session, clave: str) -> str | None:
     if fila is None or not fila.valor:
         return None
     try:
-        return _cifrador().decrypt(fila.valor.encode()).decode()
+        return cifrador().decrypt(fila.valor.encode()).decode()
     except InvalidToken:
         return None
 

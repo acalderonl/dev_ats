@@ -256,10 +256,8 @@ def publicar_en_linkedin(
             detail="Conecta tu cuenta de LinkedIn en Configuración (o vuelve a conectarla: el acceso caducó)",
         )
 
-    from app.services.configuracion_service import _cifrador
-
     try:
-        access_token = _cifrador().decrypt(token.access_token_cifrado.encode()).decode()
+        access_token = configuracion_service.cifrador().decrypt(token.access_token_cifrado.encode()).decode()
         post_id = linkedin_service.publicar_en_el_muro(
             access_token=access_token,
             persona_urn=token.persona_urn,

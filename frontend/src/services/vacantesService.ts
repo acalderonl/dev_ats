@@ -53,6 +53,8 @@ export const configuracionService = {
   guardar: (data: Partial<Record<string, string>>) => apiPut<ConfiguracionGeneral>('/configuracion', data),
   estadoLinkedIn: () => apiGet<EstadoLinkedIn>('/configuracion/linkedin/estado'),
   conectarLinkedIn: () => apiPost<{ url: string; state: string }>('/configuracion/linkedin/conectar'),
+  terminarConexionLinkedIn: (data: { code: string; state: string }) =>
+    apiPost<EstadoLinkedIn>('/configuracion/linkedin/callback', data),
   desconectarLinkedIn: () => apiDelete<void>('/configuracion/linkedin/desconectar'),
   probarCorreo: () => apiPost<{ ok: boolean; mensaje: string }>('/configuracion/correo/probar'),
   jornadas: () => apiGet<Jornada[]>('/configuracion/jornadas'),

@@ -127,3 +127,10 @@ class JornadaOut(BaseModel):
     nombre: str
     horas: Decimal
     activo: bool
+
+
+class RetornoDeLinkedIn(BaseModel):
+    """Lo que la página de retorno recoge de la URL y manda al backend."""
+
+    code: str = Field(min_length=1)
+    state: str = Field(min_length=1)

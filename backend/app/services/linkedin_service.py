@@ -28,10 +28,13 @@ import hashlib
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
 import httpx
+from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.services import configuracion_service
 
 AUTORIZACION = "https://www.linkedin.com/oauth/v2/authorization"
@@ -75,23 +78,56 @@ def esta_configurado(db: Session) -> bool:
 # --------------------------------------------------------------------------- OAuth
 
 
-def url_de_autorizacion(db: Session) -> tuple[str, str]:
-    """Devuelve (url a la que mandar al usuario, state que hay que guardar).
+MINUTOS_DE_VIDA_DEL_STATE = 10
 
-    El `state` es aleatorio y se compara al volver: sin eso, un tercero podría
-    enganchar su propia cuenta de LinkedIn a la sesión de otro.
+
+class StateInvalido(RuntimeError):
+    """El `state` que volvió de LinkedIn no es el que se mandó."""
+
+
+def _firmar_state(usuario_id: uuid.UUID) -> str:
+    """El `state` va firmado en vez de guardado en una tabla.
+
+    Lleva dentro a quién pertenece y cuándo caduca, así que al volver se comprueba
+    sin consultar nada y no quedan filas pendientes de limpiar. Sin esta
+    comprobación, un tercero podría enganchar **su** cuenta de LinkedIn a la sesión
+    de otra persona mandándole un enlace de vuelta preparado.
     """
+    ahora = datetime.now(timezone.utc)
+    carga = {
+        "sub": str(usuario_id),
+        "typ": "linkedin_oauth",
+        "nonce": secrets.token_urlsafe(8),
+        "exp": ahora + timedelta(minutes=MINUTOS_DE_VIDA_DEL_STATE),
+    }
+    ajustes = get_settings()
+    return jwt.encode(carga, ajustes.secret_key, algorithm=ajustes.algorithm)
+
+
+def verificar_state(state: str, usuario_id: uuid.UUID) -> None:
+    """Lanza `StateInvalido` si el state no es de este usuario o ya caducó."""
+    ajustes = get_settings()
+    try:
+        carga = jwt.decode(state, ajustes.secret_key, algorithms=[ajustes.algorithm])
+    except JWTError:
+        raise StateInvalido("La conexión con LinkedIn caducó o no es válida. Vuelve a empezar.")
+    if carga.get("typ") != "linkedin_oauth" or carga.get("sub") != str(usuario_id):
+        raise StateInvalido("Esta conexión con LinkedIn se inició desde otra sesión.")
+
+
+def url_de_autorizacion(db: Session, usuario_id: uuid.UUID) -> tuple[str, str]:
+    """Devuelve (url a la que mandar al usuario, state firmado)."""
     datos = credenciales(db)
     if datos is None:
         raise LinkedInNoConfigurado("Falta configurar client id, secret y redirect uri de LinkedIn")
     client_id, _, redirect_uri = datos
-    state = secrets.token_urlsafe(24)
+    state = _firmar_state(usuario_id)
     url = (
         f"{AUTORIZACION}?response_type=code"
-        f"&client_id={client_id}"
-        f"&redirect_uri={httpx.URL(redirect_uri)}"
-        f"&state={state}"
-        f"&scope={SCOPES.replace(' ', '%20')}"
+        f"&client_id={quote(client_id, safe='')}"
+        f"&redirect_uri={quote(redirect_uri, safe='')}"
+        f"&state={quote(state, safe='')}"
+        f"&scope={quote(SCOPES, safe='')}"
     )
     return url, state
 
