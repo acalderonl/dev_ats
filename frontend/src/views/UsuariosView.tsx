@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { KeyRound, Loader2, Pencil, Plus, ShieldCheck, Trash2, UserCog } from 'lucide-react'
+import {
+  KeyRound,
+  Loader2,
+  Pencil,
+  Plus,
+  ShieldCheck,
+  Trash2,
+  UserCheck,
+  UserCog,
+  UserMinus,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { Card } from '@/components/common/Card'
 import { Badge } from '@/components/common/Badge'
@@ -38,7 +48,7 @@ const FORM_USUARIO_VACIO = {
 export function UsuariosView() {
   const yo = useAuthStore((s) => s.user)
 
-  const [pestana, setPestana] = useState<'usuarios' | 'roles'>('usuarios')
+  const [pestana, setPestana] = useState<'usuarios' | 'inactivos' | 'roles'>('usuarios')
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [roles, setRoles] = useState<Rol[]>([])
   const [catalogo, setCatalogo] = useState<Permiso[]>([])
@@ -66,6 +76,8 @@ export function UsuariosView() {
   const [rolAEliminar, setRolAEliminar] = useState<Rol | null>(null)
 
   const rolesActivos = useMemo(() => roles.filter((r) => r.activo), [roles])
+  const activos = useMemo(() => usuarios.filter((u) => u.activo), [usuarios])
+  const inactivos = useMemo(() => usuarios.filter((u) => !u.activo), [usuarios])
 
   async function recargar() {
     const [u, r, c] = await Promise.all([
@@ -287,32 +299,41 @@ export function UsuariosView() {
             Quién entra, con qué rol y qué puede hacer dentro de cada módulo.
           </p>
         </div>
-        <button
-          onClick={pestana === 'usuarios' ? abrirNuevoUsuario : abrirNuevoRol}
-          className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-        >
-          <Plus size={16} />
-          {pestana === 'usuarios' ? 'Nuevo usuario' : 'Nuevo rol'}
-        </button>
+        {/* En Inactivos no hay nada que crear: lo que se hace ahí es reactivar. */}
+        {pestana !== 'inactivos' && (
+          <button
+            onClick={pestana === 'usuarios' ? abrirNuevoUsuario : abrirNuevoRol}
+            className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+          >
+            <Plus size={16} />
+            {pestana === 'usuarios' ? 'Nuevo usuario' : 'Nuevo rol'}
+          </button>
+        )}
       </div>
 
       <div className="flex gap-1 border-b border-slate-200">
-        {(['usuarios', 'roles'] as const).map((p) => (
+        {(
+          [
+            ['usuarios', `Activos (${activos.length})`],
+            ['inactivos', `Inactivos (${inactivos.length})`],
+            ['roles', `Roles (${roles.length})`],
+          ] as const
+        ).map(([valor, etiqueta]) => (
           <button
-            key={p}
-            onClick={() => setPestana(p)}
-            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium capitalize transition-colors ${
-              pestana === p
+            key={valor}
+            onClick={() => setPestana(valor)}
+            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
+              pestana === valor
                 ? 'border-brand-600 text-brand-700'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
-            {p === 'usuarios' ? `Usuarios (${usuarios.length})` : `Roles (${roles.length})`}
+            {etiqueta}
           </button>
         ))}
       </div>
 
-      {pestana === 'usuarios' ? (
+      {pestana !== 'roles' ? (
         <Card className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-left text-sm">
             <thead className="border-b border-slate-100 bg-slate-50 text-xs uppercase text-slate-500">
@@ -325,7 +346,7 @@ export function UsuariosView() {
               </tr>
             </thead>
             <tbody>
-              {usuarios.map((u) => {
+              {(pestana === 'usuarios' ? activos : inactivos).map((u) => {
                 const soyYo = u.id === yo?.id
                 return (
                   <tr key={u.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
@@ -363,14 +384,26 @@ export function UsuariosView() {
                         >
                           <KeyRound size={15} />
                         </button>
-                        <button
-                          onClick={() => setUsuarioAConfirmar(u)}
-                          disabled={soyYo}
-                          title={soyYo ? 'No puedes desactivarte a ti mismo' : 'Desactivar'}
-                          className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-400"
-                        >
-                          <Trash2 size={15} />
-                        </button>
+                        {/* No hay botón de eliminar: un usuario no se borra nunca,
+                            se desactiva. El porqué está en el aviso de confirmación. */}
+                        {u.activo ? (
+                          <button
+                            onClick={() => setUsuarioAConfirmar(u)}
+                            disabled={soyYo}
+                            title={soyYo ? 'No puedes desactivarte a ti mismo' : 'Desactivar usuario'}
+                            className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-slate-200 disabled:hover:bg-white disabled:hover:text-slate-600"
+                          >
+                            <UserMinus size={13} /> Desactivar
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setUsuarioAConfirmar(u)}
+                            title="Volver a dar acceso"
+                            className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-brand-700 hover:border-brand-300 hover:bg-brand-50"
+                          >
+                            <UserCheck size={13} /> Reactivar
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -378,6 +411,13 @@ export function UsuariosView() {
               })}
             </tbody>
           </table>
+
+          {pestana === 'inactivos' && inactivos.length === 0 && (
+            <p className="px-4 py-10 text-center text-sm text-slate-500">
+              No hay usuarios inactivos. Los que desactives aparecerán aquí y podrás
+              reactivarlos cuando quieras.
+            </p>
+          )}
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
@@ -665,27 +705,47 @@ export function UsuariosView() {
       <Modal
         open={usuarioAConfirmar !== null}
         onClose={() => setUsuarioAConfirmar(null)}
-        title={usuarioAConfirmar?.activo ? 'Desactivar usuario' : 'Activar usuario'}
+        title={usuarioAConfirmar?.activo ? 'Desactivar usuario' : 'Reactivar usuario'}
       >
         <div className="space-y-5">
-          <p className="text-sm text-slate-600">
-            {usuarioAConfirmar?.activo ? (
-              <>
+          {usuarioAConfirmar?.activo ? (
+            <>
+              <p className="text-sm text-slate-600">
                 <strong>
                   {usuarioAConfirmar?.nombres} {usuarioAConfirmar?.apellidos}
                 </strong>{' '}
-                dejará de poder entrar. <strong>No se borra</strong>: lo que publicó o evaluó sigue
-                siendo suyo en el historial, y puedes reactivarlo cuando quieras.
-              </>
-            ) : (
-              <>
-                <strong>
-                  {usuarioAConfirmar?.nombres} {usuarioAConfirmar?.apellidos}
-                </strong>{' '}
-                volverá a poder entrar con su rol y permisos anteriores.
-              </>
-            )}
-          </p>
+                dejará de poder entrar al sistema. Pasará a la pestaña{' '}
+                <strong>Inactivos</strong>, desde donde puedes reactivarlo cuando quieras con su
+                mismo rol y sus mismos permisos.
+              </p>
+
+              {/* Por qué no hay un botón de eliminar. Es la pregunta que se hace
+                  cualquiera al no encontrarlo, y merece respuesta aquí y no en un manual. */}
+              <div className="rounded-lg bg-slate-50 p-3">
+                <p className="text-sm font-medium text-slate-700">
+                  ¿Por qué no se puede eliminar?
+                </p>
+                <p className="mt-1 text-sm text-slate-600">
+                  Porque esta persona es la <strong>autora</strong> de lo que hizo: las vacantes
+                  que publicó y las evaluaciones que puso llevan su nombre. Borrarla dejaría esos
+                  registros sin autor y abriría huecos en el historial de procesos de selección
+                  que luego hay que poder reconstruir —por ejemplo, para explicar por qué se
+                  contrató a quien se contrató.
+                </p>
+                <p className="mt-2 text-sm text-slate-600">
+                  Desactivar consigue lo mismo que te interesa —que no entre— sin perder nada.
+                </p>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-slate-600">
+              <strong>
+                {usuarioAConfirmar?.nombres} {usuarioAConfirmar?.apellidos}
+              </strong>{' '}
+              volverá a poder entrar con su rol y permisos anteriores, y saldrá de la pestaña de
+              inactivos.
+            </p>
+          )}
           <div className="flex gap-2">
             <button
               type="button"
@@ -705,7 +765,7 @@ export function UsuariosView() {
               }`}
             >
               {guardando && <Loader2 size={15} className="animate-spin" />}
-              Sí
+              {usuarioAConfirmar?.activo ? 'Sí, desactivar' : 'Sí, reactivar'}
             </button>
           </div>
         </div>
