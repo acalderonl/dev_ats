@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Plus, Trash2, Loader2, Settings, Users, Star } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card } from '@/components/common/Card'
@@ -183,6 +183,7 @@ export function CargosView() {
 
   const [loading, setLoading] = useState(true)
   const [guardando, setGuardando] = useState(false)
+  const [pestana, setPestana] = useState<'activos' | 'inactivos'>('activos')
   const [showNewCargo, setShowNewCargo] = useState(false)
   /** Cargo que se está editando; `null` cuando el modal crea uno nuevo. */
   const [cargoEnEdicion, setCargoEnEdicion] = useState<Cargo | null>(null)
@@ -192,6 +193,10 @@ export function CargosView() {
   const [cambiandoEstado, setCambiandoEstado] = useState(false)
 
   const [form, setForm] = useState(FORM_VACIO)
+
+  const activos = useMemo(() => cargos.filter((c) => c.activo), [cargos])
+  const inactivos = useMemo(() => cargos.filter((c) => !c.activo), [cargos])
+  const visibles = pestana === 'activos' ? activos : inactivos
 
   useEffect(() => {
     Promise.all([
@@ -318,21 +323,53 @@ export function CargosView() {
             Descriptivos de puesto. Pulsa el estado de un cargo para activarlo o desactivarlo.
           </p>
         </div>
-        <button
-          onClick={abrirNuevo}
-          className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-        >
-          <Plus size={16} /> Nuevo Cargo
-        </button>
+        {/* En Inactivos no hay nada que crear: lo que se hace ahí es reactivar. */}
+        {pestana === 'activos' && (
+          <button
+            onClick={abrirNuevo}
+            className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+          >
+            <Plus size={16} /> Nuevo Cargo
+          </button>
+        )}
+      </div>
+
+      <div className="flex gap-1 border-b border-slate-200">
+        {(
+          [
+            ['activos', `Activos (${activos.length})`],
+            ['inactivos', `Inactivos (${inactivos.length})`],
+          ] as const
+        ).map(([valor, etiqueta]) => (
+          <button
+            key={valor}
+            onClick={() => setPestana(valor)}
+            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
+              pestana === valor
+                ? 'border-brand-600 text-brand-700'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {etiqueta}
+          </button>
+        ))}
       </div>
 
       {loading ? (
         <div className="flex justify-center py-12 text-slate-400">
           <Loader2 className="animate-spin" size={24} />
         </div>
+      ) : visibles.length === 0 ? (
+        <Card className="p-10">
+          <p className="text-center text-sm text-slate-500">
+            {pestana === 'activos'
+              ? 'No hay cargos activos. Crea uno o reactiva alguno de los inactivos.'
+              : 'No hay cargos inactivos. Los que desactives aparecerán aquí.'}
+          </p>
+        </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {cargos.map((cargo) => (
+          {visibles.map((cargo) => (
             <Card
               key={cargo.id}
               role="button"
@@ -618,13 +655,15 @@ export function CargosView() {
           <p className="text-sm text-slate-600">
             {cargoAConfirmar?.activo ? (
               <>
-                ¿Seguro que quieres desactivar <strong>{cargoAConfirmar?.nombre}</strong>? Dejará de
-                ofrecerse al crear vacantes nuevas. Las vacantes que ya lo usan no se tocan.
+                ¿Seguro que quieres desactivar <strong>{cargoAConfirmar?.nombre}</strong>? Pasará a
+                la pestaña <strong>Inactivos</strong> y dejará de ofrecerse al crear vacantes
+                nuevas. <strong>No se borra</strong>: las vacantes que ya lo usan no se tocan, y
+                puedes reactivarlo cuando quieras.
               </>
             ) : (
               <>
-                ¿Seguro que quieres activar <strong>{cargoAConfirmar?.nombre}</strong>? Volverá a
-                estar disponible al crear vacantes.
+                ¿Seguro que quieres activar <strong>{cargoAConfirmar?.nombre}</strong>? Volverá a la
+                pestaña <strong>Activos</strong> y estará disponible al crear vacantes.
               </>
             )}
           </p>
