@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Loader2, Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { competenciasService } from '@/services/competenciasService'
@@ -8,6 +8,9 @@ import type { CompetenciaSugerida, GrupoPorClasificacion, TipoCompetencia } from
 function errorMessage(err: unknown): string {
   return err instanceof ApiError ? err.message : 'Ocurrió un error inesperado'
 }
+
+/** Margen tras salir el cursor antes de cerrar solo. */
+const MS_ANTES_DE_CERRAR = 2000
 
 /**
  * Botones por clasificación de cargo que despliegan lo que ya piden otros cargos.
@@ -38,6 +41,29 @@ export function CategoriasDeCompetencias({
   const [grupos, setGrupos] = useState<GrupoPorClasificacion[]>([])
   const [cargando, setCargando] = useState(true)
   const [abierto, setAbierto] = useState<number | null>(null)
+  const temporizadorDeCierre = useRef<number | null>(null)
+
+  const cancelarCierre = useCallback(() => {
+    if (temporizadorDeCierre.current !== null) {
+      clearTimeout(temporizadorDeCierre.current)
+      temporizadorDeCierre.current = null
+    }
+  }, [])
+
+  /**
+   * Cierra solo al salir el cursor, con margen.
+   *
+   * Los 2 segundos son para no castigar el pulso: cruzar fuera del panel camino de un
+   * chip del borde no debería cerrarlo. Si el cursor vuelve antes, se cancela.
+   */
+  const programarCierre = useCallback(() => {
+    cancelarCierre()
+    temporizadorDeCierre.current = window.setTimeout(() => setAbierto(null), MS_ANTES_DE_CERRAR)
+  }, [cancelarCierre])
+
+  // Si el modal se cierra con el panel abierto, el temporizador seguiría vivo y
+  // llamaría a `setAbierto` sobre un componente ya desmontado.
+  useEffect(() => cancelarCierre, [cancelarCierre])
 
   useEffect(() => {
     let vigente = true
@@ -80,7 +106,14 @@ export function CategoriasDeCompetencias({
   if (ordenados.length === 0) return null
 
   return (
-    <div className="relative">
+    // Los eventos van en el contenedor, no en el panel: así moverse del panel a los
+    // botones (o al revés) no cuenta como salir, que es lo que se hace al abrir otra
+    // categoría sin cerrar la anterior.
+    <div
+      className="relative"
+      onMouseLeave={abierto === null ? undefined : programarCierre}
+      onMouseEnter={cancelarCierre}
+    >
       {/* El panel va **flotando** sobre los botones (`absolute bottom-full`), no en el
           flujo. Si ocupara sitio, al abrirlo empujaría la fila de botones hacia abajo
           —94px, medidos— y lo que acabas de pulsar se escaparía de debajo del cursor.
