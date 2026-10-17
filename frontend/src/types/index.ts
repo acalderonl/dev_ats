@@ -326,3 +326,35 @@ export interface DashboardMetrics {
   postulaciones_por_origen: { origen: string; total: number }[]
   entrevistas_pendientes: number
 }
+
+// --- Roles y permisos ---
+
+export interface Permiso {
+  id: number
+  clave: string
+  modulo: string
+  accion: string
+  etiqueta: string
+}
+
+export interface Rol {
+  id: number
+  nombre: string
+  descripcion: string | null
+  es_sistema: boolean
+  activo: boolean
+  permisos: string[]
+  usuarios_asignados: number
+}
+
+/** Lo que la pantalla necesita para pintar las casillas sin adivinar. */
+export interface PermisosDeUsuario {
+  rol: string
+  es_super_admin: boolean
+  /** Lo que trae su rol de fábrica. */
+  del_rol: string[]
+  /** Las excepciones puestas a esta persona: clave -> concedido. */
+  ajustes: Record<string, boolean>
+  /** El resultado de aplicar unas sobre otras. */
+  efectivos: string[]
+}
