@@ -18,9 +18,16 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import get_current_user, require_roles
 from app.core.utils import normalizar
+from app.models.cargo import Cargo
+from app.models.clasificacion_cargo import ClasificacionCargo
 from app.models.competencia import CargoCompetencia, Competencia
 from app.models.usuario import Usuario
-from app.schemas.competencia import CompetenciaCreate, CompetenciaOut
+from app.schemas.competencia import (
+    CompetenciaCreate,
+    CompetenciaOut,
+    CompetenciaSugerida,
+    GrupoPorClasificacion,
+)
 
 router = APIRouter()
 
@@ -84,6 +91,53 @@ def buscar(
         CompetenciaOut(id=c.id, nombre=c.nombre, tipo=c.tipo, activo=c.activo, usos=_conteo_de_usos(db, c.id))
         for c in competencias
     ]
+
+
+@router.get("/por-clasificacion", response_model=list[GrupoPorClasificacion])
+def por_clasificacion(
+    tipo: str = Query(..., pattern="^(academico|blanda)$"),
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(get_current_user),
+) -> list[GrupoPorClasificacion]:
+    """Qué competencias piden ya los cargos, agrupadas por la clasificación del cargo.
+
+    Al crear un cargo de Tecnología interesa ver qué piden los otros cargos de
+    Tecnología; el catálogo entero por orden alfabético no ayuda a decidir.
+
+    Dentro de cada grupo van primero las más usadas: si cinco cargos de un área piden
+    lo mismo, probablemente este también.
+
+    Los grupos vacíos no se devuelven. Un botón que al abrirse no muestra nada es una
+    promesa incumplida, y la pantalla no puede saberlo de antemano sin pedirlo.
+    """
+    filas = db.execute(
+        select(
+            ClasificacionCargo.id,
+            ClasificacionCargo.nombre,
+            Competencia.id,
+            Competencia.nombre,
+            func.count(CargoCompetencia.cargo_id).label("usos"),
+        )
+        .select_from(ClasificacionCargo)
+        .join(Cargo, Cargo.clasificacion_id == ClasificacionCargo.id)
+        .join(CargoCompetencia, CargoCompetencia.cargo_id == Cargo.id)
+        .join(Competencia, Competencia.id == CargoCompetencia.competencia_id)
+        .where(Competencia.tipo == tipo, Competencia.activo.is_(True))
+        .group_by(ClasificacionCargo.id, ClasificacionCargo.nombre, Competencia.id, Competencia.nombre)
+        .order_by(ClasificacionCargo.nombre, func.count(CargoCompetencia.cargo_id).desc(), Competencia.nombre)
+    ).all()
+
+    grupos: dict[int, GrupoPorClasificacion] = {}
+    for clasificacion_id, clasificacion, competencia_id, nombre, usos in filas:
+        grupo = grupos.get(clasificacion_id)
+        if grupo is None:
+            grupo = GrupoPorClasificacion(
+                clasificacion_id=clasificacion_id, clasificacion=clasificacion, competencias=[]
+            )
+            grupos[clasificacion_id] = grupo
+        grupo.competencias.append(CompetenciaSugerida(id=competencia_id, nombre=nombre, usos=usos))
+
+    return list(grupos.values())
 
 
 @router.post("", response_model=CompetenciaOut, status_code=status.HTTP_201_CREATED)

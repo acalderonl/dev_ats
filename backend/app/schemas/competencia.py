@@ -27,3 +27,23 @@ class CompetenciaOut(BaseModel):
     usos: int = 0
     # 0 a 1. Solo viene al buscar: cuánto se parece a lo que se escribió.
     similitud: float | None = None
+
+
+class CompetenciaSugerida(BaseModel):
+    """Una competencia que ya usan otros cargos, con cuántos la usan."""
+
+    id: int
+    nombre: str
+    usos: int
+
+
+class GrupoPorClasificacion(BaseModel):
+    """Lo que usan los cargos de una misma clasificación.
+
+    Sirve para reaprovechar: al crear un cargo de Tecnología interesa ver qué piden los
+    demás cargos de Tecnología, no el catálogo entero ordenado alfabéticamente.
+    """
+
+    clasificacion_id: int | None
+    clasificacion: str
+    competencias: list[CompetenciaSugerida]

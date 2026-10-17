@@ -532,6 +532,7 @@ export function CargosView() {
               tipo="academico"
               etiqueta="Conocimientos académicos"
               placeholder="Ej. Contabilidad de costos, SQL, Normas NIIF..."
+              clasificacionActual={form.clasificacion_id}
               seleccionadas={form.competencias.filter((c) => c.tipo === 'academico')}
               onChange={(academicos) =>
                 setForm((f) => ({
@@ -547,6 +548,7 @@ export function CargosView() {
               tipo="blanda"
               etiqueta="Destrezas y habilidades"
               placeholder="Ej. Trabajo en equipo, Comunicación efectiva..."
+              clasificacionActual={form.clasificacion_id}
               seleccionadas={form.competencias.filter((c) => c.tipo === 'blanda')}
               onChange={(blandas) =>
                 setForm((f) => ({

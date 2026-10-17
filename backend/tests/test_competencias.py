@@ -72,3 +72,84 @@ def test_no_se_puede_eliminar_una_en_uso(client, reclutador_headers, unique_suff
 
 def test_requiere_autenticacion(client):
     assert client.get("/api/v1/competencias", params={"tipo": "academico"}).status_code == 401
+
+
+# ------------------------------------------- Sugerencias por clasificación
+
+
+def test_agrupa_las_competencias_por_la_clasificacion_del_cargo(client, reclutador_headers, unique_suffix, crear_cargo):
+    """Al crear un cargo de un área interesa ver qué piden los otros cargos de esa área."""
+    cargo = crear_cargo(unique_suffix, clasificacion="Ingeniería")
+    competencia = client.post(
+        "/api/v1/competencias",
+        json={"tipo": "academico", "nombre": f"Termodinámica {unique_suffix[:5]}"},
+        headers=reclutador_headers,
+    ).json()
+    client.put(
+        f"/api/v1/cargos/{cargo['id']}",
+        json={
+            "nombre_id": cargo["nombre_id"],
+            "clasificacion_id": cargo["clasificacion_id"],
+            "competencias": [{"competencia_id": competencia["id"], "requerido": True, "deseado": False}],
+        },
+        headers=reclutador_headers,
+    )
+
+    grupos = client.get(
+        "/api/v1/competencias/por-clasificacion", params={"tipo": "academico"}, headers=reclutador_headers
+    ).json()
+
+    mio = next(g for g in grupos if g["clasificacion_id"] == cargo["clasificacion_id"])
+    assert competencia["nombre"] in [c["nombre"] for c in mio["competencias"]]
+
+
+def test_no_devuelve_grupos_vacios(client, reclutador_headers, unique_suffix, crear_cargo):
+    """Un botón que al abrirse no muestra nada es una promesa incumplida.
+
+    Se crea un cargo con clasificación pero SIN competencias: su clasificación no debe
+    aparecer entre los grupos.
+    """
+    cargo = crear_cargo(unique_suffix, clasificacion="Sin competencias")
+
+    grupos = client.get(
+        "/api/v1/competencias/por-clasificacion", params={"tipo": "academico"}, headers=reclutador_headers
+    ).json()
+
+    assert cargo["clasificacion_id"] not in [g["clasificacion_id"] for g in grupos]
+
+
+def test_separa_academicas_de_blandas(client, reclutador_headers, unique_suffix, crear_cargo):
+    """Las secciones 5 y 6 del modal no pueden ofrecerse lo del otro tipo."""
+    cargo = crear_cargo(unique_suffix, clasificacion="Mixta")
+    blanda = client.post(
+        "/api/v1/competencias",
+        json={"tipo": "blanda", "nombre": f"Escucha activa {unique_suffix[:5]}"},
+        headers=reclutador_headers,
+    ).json()
+    client.put(
+        f"/api/v1/cargos/{cargo['id']}",
+        json={
+            "nombre_id": cargo["nombre_id"],
+            "clasificacion_id": cargo["clasificacion_id"],
+            "competencias": [{"competencia_id": blanda["id"], "requerido": True, "deseado": False}],
+        },
+        headers=reclutador_headers,
+    )
+
+    academicos = client.get(
+        "/api/v1/competencias/por-clasificacion", params={"tipo": "academico"}, headers=reclutador_headers
+    ).json()
+    blandas = client.get(
+        "/api/v1/competencias/por-clasificacion", params={"tipo": "blanda"}, headers=reclutador_headers
+    ).json()
+
+    assert cargo["clasificacion_id"] not in [g["clasificacion_id"] for g in academicos]
+    grupo = next(g for g in blandas if g["clasificacion_id"] == cargo["clasificacion_id"])
+    assert blanda["nombre"] in [c["nombre"] for c in grupo["competencias"]]
+
+
+def test_un_tipo_invalido_se_rechaza(client, reclutador_headers):
+    respuesta = client.get(
+        "/api/v1/competencias/por-clasificacion", params={"tipo": "inventado"}, headers=reclutador_headers
+    )
+    assert respuesta.status_code == 422

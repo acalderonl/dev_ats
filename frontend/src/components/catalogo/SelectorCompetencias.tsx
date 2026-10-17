@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Loader2, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { CategoriasDeCompetencias } from '@/components/catalogo/CategoriasDeCompetencias'
 import { competenciasService } from '@/services/competenciasService'
 import { ApiError } from '@/lib/apiClient'
 import type { Competencia, CompetenciaDelCargo, TipoCompetencia } from '@/types'
@@ -25,12 +26,15 @@ export function SelectorCompetencias({
   placeholder,
   seleccionadas,
   onChange,
+  clasificacionActual,
 }: {
   tipo: TipoCompetencia
   etiqueta: string
   placeholder: string
   seleccionadas: CompetenciaDelCargo[]
   onChange: (competencias: CompetenciaDelCargo[]) => void
+  /** Clasificación del cargo en edición: su grupo de sugerencias va primero. */
+  clasificacionActual: number | null
 }) {
   const [texto, setTexto] = useState('')
   const [sugerencias, setSugerencias] = useState<Competencia[]>([])
@@ -206,9 +210,26 @@ export function SelectorCompetencias({
         )}
       </div>
 
+      {/* Atajo para no tener que escribir lo que otros cargos ya pidieron. */}
+      <CategoriasDeCompetencias
+        tipo={tipo}
+        clasificacionActual={clasificacionActual}
+        yaElegidas={yaElegidas}
+        onElegir={(sugerida) =>
+          agregar({
+            id: sugerida.id,
+            nombre: sugerida.nombre,
+            tipo,
+            activo: true,
+            usos: sugerida.usos,
+            similitud: null,
+          })
+        }
+      />
+
       {seleccionadas.length === 0 ? (
         <p className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-xs text-slate-400">
-          Escribe arriba para buscar o crear.
+          Escribe arriba para buscar, o usa los botones de categoría.
         </p>
       ) : (
         <div className="overflow-hidden rounded-lg border border-slate-200">

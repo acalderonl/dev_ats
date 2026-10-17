@@ -358,3 +358,17 @@ export interface PermisosDeUsuario {
   /** El resultado de aplicar unas sobre otras. */
   efectivos: string[]
 }
+
+/** Una competencia que otros cargos ya usan, con cuántos la usan. */
+export interface CompetenciaSugerida {
+  id: number
+  nombre: string
+  usos: number
+}
+
+/** Lo que piden los cargos de una misma clasificación. */
+export interface GrupoPorClasificacion {
+  clasificacion_id: number | null
+  clasificacion: string
+  competencias: CompetenciaSugerida[]
+}

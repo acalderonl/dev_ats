@@ -34,6 +34,17 @@ export default {
         },
         escudo: '#20395f',
       },
+      keyframes: {
+        // Sube desde donde está el botón y crece: da la sensación de que el panel
+        // sale del propio botón en vez de aparecer de la nada.
+        desplegarArriba: {
+          '0%': { opacity: '0', transform: 'translateY(8px)', maxHeight: '0' },
+          '100%': { opacity: '1', transform: 'translateY(0)', maxHeight: '28rem' },
+        },
+      },
+      animation: {
+        'desplegar-arriba': 'desplegarArriba 220ms ease-out',
+      },
     },
   },
   plugins: [],
