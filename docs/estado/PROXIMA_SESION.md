@@ -1,6 +1,6 @@
 # Arranque de la próxima sesión
 
-> Escrito al cerrar el **2026-10-12** (sesión 6). Si al leerlo ya no cuadra con el código, manda el
+> Escrito al cerrar el **2026-10-16** (sesión 8). Si al leerlo ya no cuadra con el código, manda el
 > código: se corrige este archivo antes de seguir.
 
 ## 0. Antes de nada: hace falta un `.env`
@@ -34,7 +34,7 @@ docker compose up -d
 docker compose exec backend pytest -q
 ```
 
-Deben salir **97 en verde**. Si no, **eso es la sesión**: no se empieza nada nuevo sobre terreno
+Deben salir **137 en verde**. Si no, **eso es la sesión**: no se empieza nada nuevo sobre terreno
 que ya se movió.
 
 Luego leer `ESTADO.md` y, de `FASES.md`, la etapa 2.
@@ -45,8 +45,12 @@ Luego leer `ESTADO.md` y, de `FASES.md`, la etapa 2.
 entorno**. En un servidor real crearía los tres usuarios de demo —incluido un `super_admin`— con la
 contraseña `Demo1234!`, que está publicada en este repositorio y en `CLAUDE.md`.
 
-Es la **misma clase de fallo que S.1**, que se cerró esta sesión: una credencial conocida que llega
-a producción sola.
+🔴 **Ya pasó, y en esta misma máquina.** El 14 de octubre el dueño renombró `admin@atsdemo.com`
+desde la pantalla de usuarios; en el siguiente arranque el seed **volvió a crearlo**, porque busca
+por correo y ya no lo encontraba. Hoy hay 5 usuarios, dos de ellos cuentas de demo recreadas con la
+contraseña publicada. Dejó de ser un riesgo teórico.
+
+Es la **misma clase de fallo que S.1**: una credencial conocida que llega a producción sola.
 
 **Terminada cuando:**
 - El seed solo corre si el entorno lo pide explícitamente (una variable, no una suposición).
@@ -58,9 +62,21 @@ a producción sola.
 **Cuidado con:** las pruebas dependen de los usuarios de demo (`DEMO_USERS` en `conftest.py`). Lo
 que se apaga es el seed en producción, no el de las pruebas.
 
+**Añadir al cerrarla:** que el seed **no recree** una cuenta de demo que alguien renombró a
+propósito. Buscar por correo no basta; hace falta una marca de "esta cuenta vino del seed".
+
 **Después, en la misma etapa:** `S.3` (límite de peticiones en el portal público) y `S.4`
 (revisar el resto de entradas sin límite). Nota: el límite de tamaño y de tipo real en archivos
-subidos **ya se hizo** esta sesión, al construir la subida de la imagen del post.
+subidos ya se hizo el 12 de octubre, al construir la subida de la imagen del post, y el 14 se
+aplicó también al CV.
+
+## 2B. Lo más visible que quedó a medias
+
+- **El menú lateral se oculta por rol, no por permisos** (fase M7.2). Los permisos ya se
+  administran y se guardan, pero hasta pintar el menú desde `/users/yo/permisos` lo que marques en
+  los otros módulos no se nota. Es lo que más se echa en falta tras lo de la sesión 8.
+- **El formulario de postulación sigue siendo el antiguo**, de 12 campos. El backend devuelve ya
+  los ~40 (`POST /api/v1/public/leer-cv`), así que falta solo la pantalla de 3 pasos.
 
 ## 3. Lo que necesita que el dueño actúe
 

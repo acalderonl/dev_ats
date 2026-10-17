@@ -101,6 +101,8 @@ Con candidatos reales, la peor es la primera: un candidato descartado podría se
 |---|---|---|---|
 | **M2.2** | Preguntas eliminatorias que de verdad descartan | Una respuesta que incumple una pregunta *knockout* descarta la postulación; con prueba de los dos casos (cumple / no cumple). Hoy las respuestas se guardan pero no filtran nada. | pendiente |
 | **M7.1** | Guardas de ruta en el frontend | Entrar por URL a una sección sin permiso redirige (hoy solo se oculta el menú; el backend sí protege). | pendiente |
+| **M7.2** | El menú y los botones, por permisos | El menú lateral se pinta desde `/users/yo/permisos` y no desde el rol, y los botones de cada módulo se ocultan según el permiso. **Hoy las casillas de permisos de los otros módulos no se notan en la interfaz.** | pendiente (nueva, 2026-10-16) |
+| **M7.3** | Migrar los 33 endpoints a `require_permission` | Ningún endpoint decide por nombre de rol. Hasta entonces los tres roles del sistema no se pueden renombrar, porque el código los nombra. Se hace módulo a módulo, a medida que se cierran. | pendiente (nueva, 2026-10-16) |
 | **M4.1** | Exportar de verdad | Descarga un CSV con los contactos filtrados (hoy el botón solo muestra un aviso). | pendiente |
 | **M4.2** | Etiquetas | Se pueden etiquetar candidatos y filtrar por etiqueta (hoy el botón solo muestra un aviso). | pendiente |
 | **M5.1** | Scorecard consolidado | El promedio por candidato se ve en la interfaz (`evaluation_service.promedio_puntaje` ya existe y nadie lo llama). | pendiente |

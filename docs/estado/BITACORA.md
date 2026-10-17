@@ -8,6 +8,112 @@ una funcionalidad que funcione.
 
 ---
 
+## 2026-10-16 — Sesión 8 · Usuarios, roles y permisos; pestañas en Cargos
+
+**Fases:** M7 (usuarios y roles) muy ampliado. **S.2 sigue sin empezar**, y hoy dejó de ser
+teórica (ver los avisos).
+
+**Usuarios y roles: de media pantalla a módulo completo**
+- Antes solo se podía listar usuarios, cambiarles el rol y activarlos. Ahora se **crean,
+  editan, se les restablece la contraseña** y se les asignan permisos. De roles no había
+  nada: eran tres nombres sembrados en `seed.py`.
+- **Eliminar es desactivar.** Quien publicó una vacante o evaluó a un candidato es el autor
+  de esos registros; borrarlo abriría huecos en el historial de un proceso de selección que
+  luego hay que poder reconstruir. El aviso lo explica, que es la pregunta que se hace
+  cualquiera al no encontrar el botón.
+- Tres accidentes que el código impide, todos la misma variante de quedarse fuera del propio
+  sistema: desactivarse a uno mismo, quitarse el propio super admin, y dejar la aplicación
+  **sin ningún super admin activo**.
+
+**Permisos: del código a la base**
+- Estaban escritos a mano en cada endpoint (`require_roles("...")` × 33), así que no se
+  podían administrar. Ahora son **27 entradas sacadas del menú lateral**: un permiso por
+  cada acción real de cada pantalla. No se inventaron permisos para cosas que la aplicación
+  todavía no hace.
+- Dos niveles, como pidió el dueño: **el rol da la plantilla y cada usuario admite
+  excepciones** en ambos sentidos. Sin el nivel de usuario no se podría recortar un permiso a
+  una persona sin sacarla de su rol.
+- `require_permission` **convive** con `require_roles`: ninguno de los 33 endpoints queda sin
+  protección mientras se migran.
+- Los tres roles iniciales quedan marcados `es_sistema` y protegidos contra renombrado y
+  borrado: el código todavía los nombra, y renombrar `reclutador` dejaría 21 endpoints sin
+  dejar pasar a nadie **y sin error visible**.
+
+**Cargos**
+- Las secciones 5 y 6 ganan **botones por clasificación** que despliegan lo que ya piden los
+  cargos de esa misma clasificación. Dentro de cada grupo, primero las más usadas; la
+  clasificación del cargo en edición va primera. Los grupos vacíos no se devuelven.
+- Activos e inactivos **separados en pestañas**, igual que en Usuarios.
+- El panel de categorías se cierra solo 2 s después de salir el cursor; si vuelve, se cancela.
+
+**Verificado**
+- **137 pruebas en verde** (eran 112).
+- Contra PostgreSQL: el rol creado desde la pantalla guardó los 4 permisos marcados con el
+  nombre normalizado a identificador; quitarle un permiso a un reclutador guardó **una sola
+  fila** de excepción, no diecinueve, y sus efectivos pasaron de 19 a 18 con el resto intacto.
+- En Cargos, ida y vuelta completa sobre un cargo sin vacantes: desactivar movió los
+  contadores de 3/2 a 2/3 y reactivar los devolvió. Los cinco cargos quedaron como estaban.
+- El cierre automático, con los dos controles: sigue abierto a 1,2 s y cerrado a 2,6 s; y si
+  el cursor vuelve al segundo, sigue abierto 2,5 s después.
+- Datos de prueba creados y borrados en cada caso.
+
+**Un fallo encontrado por las pruebas**
+- La migración marca `es_sistema` en los roles **que ya existen**, pero en una instalación
+  nueva los crea el seed después, con el valor por defecto en falso. **Una instalación desde
+  cero habría tenido los tres roles base desprotegidos.** Corregido en `seed.py`.
+
+**Errores propios que conviene recordar**
+- Dos mediciones malas seguidas al probar el cierre automático: un `mouseleave` sintético no
+  dispara el handler de React, y después apunté el ratón a y=638 cuando el contenedor estaba
+  en y=497..527 —el frame de la captura va a 0,625 del viewport—, así que nunca llegué a
+  entrar. Las dos veces "no cerraba" porque nunca le dije que saliera: **fallaba la prueba,
+  no el código.**
+- Volví a romper archivos con sustituciones multilínea de `perl` (`schemas/configuracion.py`,
+  por el `|` de los tipos `str | None`). Es la tercera sesión seguida. **Para ediciones
+  estructurales, edición exacta.**
+
+**Pendiente / avisos**
+- 🔴 **S.2 dejó de ser teórica.** El dueño renombró `admin@atsdemo.com` y el seed **volvió a
+  crearlo** en el siguiente arranque, con `Demo1234!`, que está publicada en el repo. Ahora
+  hay 5 usuarios, dos de ellos cuentas de demo recreadas.
+- 🔴 **El menú lateral todavía se oculta por rol, no por permisos.** Hasta conectarlo a
+  `/users/yo/permisos`, lo que se marca en los otros módulos no se nota en la interfaz.
+- La barra superior guarda el nombre de quien entró y no se refresca al editarse a uno mismo.
+- Hay dos cargos llamados "Analista de Reclutamiento" (uno activo, otro inactivo). No es un
+  fallo —el nombre sale de un catálogo— pero confunde en las pestañas.
+
+---
+
+## 2026-10-14 — Sesión 7 · LinkedIn conectable, marca ANAI y perfil del postulante
+
+> Anotada el 16 de octubre: la sesión se cerró sin documentar. Se reconstruye desde
+> `git log` y el código, no de memoria.
+
+**Hecho**
+- **El flujo de OAuth de LinkedIn estaba a medias** y apareció al ir a explicar cómo conectar
+  la app: `canjear_codigo()` existía pero no lo llamaba nadie, no había página de retorno, y
+  el `state` se generaba sin comprobarse. Se llegaba a la pantalla de permisos y de ahí a un
+  404. Cerrado: página de retorno en el frontend, endpoint que canjea el código y guarda el
+  token cifrado, y `state` firmado (JWT de 10 minutos) en vez de guardado en una tabla.
+- **Menú lateral con los colores de la institución** (`#003462`), con el escudo pasado a
+  blanco por filtro: es monocromo y sobre azul oscuro habría desaparecido.
+- **Perfil completo del postulante**: de 12 campos a ~40, con educación, idiomas y experiencia
+  en tablas propias. La lectura del CV pasa de expresiones regulares a la **API de Claude**,
+  mandando el PDF tal cual —no el texto aplanado— para que el modelo vea la página.
+
+**Verificado**
+- 112 pruebas en verde (eran 102). El `state` de otra persona se rechaza, el inventado y el
+  caducado también, y el propio sí pasa la comprobación.
+- Contraste del menú medido: 12,6:1 en el título y 10,2:1 en los enlaces.
+
+**Dos fallos encontrados por las pruebas**
+- **El consentimiento de privacidad no se validaba**: con `acepta_privacidad: bool = False`,
+  Pydantic no valida los valores por defecto, así que el validador no llegaba a correr y una
+  postulación sin aceptar nada entraba igual.
+- Un `.docx` o PDF corrupto daba 500 en vez de decir que el archivo está dañado.
+
+---
+
 ## 2026-10-12 — Día 6 · Vacantes como publicación, S.1 cerrada y marca ANAI
 
 > Sesión de tarde. Comparte fecha con el día 5: son **dos sesiones del mismo día**, no dos

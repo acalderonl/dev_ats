@@ -1,6 +1,6 @@
 # Estado del proyecto — dónde estamos AHORA
 
-> Última actualización: **2026-10-12** · Sesiones: **6** (en 5 días) · Pruebas: **97 en verde**
+> Última actualización: **2026-10-16** · Sesiones: **8** (en 7 días) · Pruebas: **137 en verde**
 > Este archivo se lee al empezar cada sesión. Si algo aquí ya no es cierto, se corrige antes de seguir.
 
 ## En una línea
@@ -16,7 +16,7 @@ publicación con estados, alcance y post, y la aplicación lleva la **marca de l
 |---|---|
 | **Fase** | `S.2 — El seed no debe correr en producción` |
 | **Etapa** | 2 de 6 — Bloqueantes de seguridad |
-| **Por qué esta** | `main.py:18` corre el seed en cada arranque sin mirar el entorno: en un servidor real crearía un super admin con contraseña conocida y publicada. Es la misma clase de fallo que S.1, que ya se cerró. |
+| **Por qué esta** | `main.py:18` corre el seed en cada arranque sin mirar el entorno. **Ya pasó en desarrollo**: el dueño renombró `admin@atsdemo.com` el 14-oct y el seed volvió a crearlo en el siguiente arranque, con `Demo1234!`, que está publicada en este repo. Hoy hay 5 usuarios, dos de ellos cuentas de demo recreadas. Dejó de ser un riesgo teórico. |
 | **Terminada cuando** | El seed solo corre si el entorno lo pide explícitamente, y nunca crea usuarios de demo fuera de desarrollo. |
 | **Antes hay que** | Levantar el entorno: `docker compose up -d`. |
 
@@ -50,7 +50,7 @@ Leyenda: 🟢 base funcionando · 🟡 base funcionando con huecos conocidos · 
 | **M4** Directorio de contactos | 🟡 | Búsqueda, **con pruebas** | M4.1 exportar de verdad | 4 |
 | **M5** Evaluaciones | 🟡 | ❌ nada | M5.1 scorecard consolidado | 4 |
 | **M6** Dashboard | 🟡 | Carga y dibuja (a mano) | M6.1 volumen en el tiempo | 6 |
-| **M7** Usuarios y roles | 🟡 | Login y RBAC, **con pruebas** | M7.1 guardas de ruta | 4 |
+| **M7** Usuarios y roles | 🟢 | CRUD de usuarios y roles, y permisos por módulo con ajuste por usuario, **con pruebas**. Comprobado en la base que una excepción guarda una fila, no una copia del rol | M7.2 el menú por permisos, no por rol | 4 |
 | **S** Seguridad | 🟡 | S.1 cerrada y verificada con control positivo y negativo. Quedan 3 fallos confirmados | **S.2 el seed en producción** ⬅ activa | 2 |
 | **T** Transversal | 🟢 | Suite corriendo, aislada y sin fuga | T.2 validar por mutación | 1 |
 
@@ -86,6 +86,21 @@ interna no aparece en el portal público aunque esté abierta y alguien tenga el
 La pantalla de **Configuración** guarda las credenciales **cifradas** y no las devuelve nunca:
 muestra si están puestas y sus últimos cuatro caracteres. El correo admite **Gmail/Workspace o
 cualquier servidor SMTP institucional**, con un botón que prueba la conexión sin enviar nada.
+
+### Usuarios, roles y permisos
+
+Los usuarios se crean, editan y desactivan —**nunca se borran**: son los autores de las
+vacantes que publicaron y las evaluaciones que pusieron—. Los roles se crean y se editan,
+salvo los tres del sistema, cuyo nombre el código todavía referencia.
+
+Los permisos son **27, sacados del menú lateral**: uno por cada acción real de cada pantalla.
+Se resuelven en dos niveles: el rol da la plantilla y cada usuario admite excepciones en
+ambos sentidos. Se guarda solo la diferencia, así que cambiar la plantilla de un rol la
+heredan sus usuarios en vez de quedarse con una copia congelada.
+
+⚠️ `require_permission` convive con `require_roles`: los 33 endpoints antiguos siguen
+protegidos por rol. **Hasta migrarlos, lo que se marca en los otros módulos no gobierna el
+backend**, y el menú lateral sigue ocultándose por rol.
 
 ### La marca
 
