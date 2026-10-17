@@ -150,9 +150,10 @@ export function PostularView() {
     <div className="min-h-screen bg-slate-50 px-4 py-8 sm:py-12">
       <div className="mx-auto max-w-2xl">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">
-            ATS
-          </div>
+          <img src="/escudo-anai.svg" alt="Escudo de la ANAI" className="mx-auto mb-3 h-16 w-auto" />
+          <p className="mb-3 text-xs font-medium uppercase tracking-wider text-escudo">
+            Academia Naval Almirante Illingworth
+          </p>
           <h1 className="text-lg font-semibold text-slate-900">{vacante.titulo}</h1>
           <p className="text-sm text-slate-500">
             {vacante.cargo_nombre} · Vence el {new Date(vacante.fecha_limite).toLocaleDateString('es-EC')}

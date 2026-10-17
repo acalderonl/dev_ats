@@ -28,12 +28,15 @@ services:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-ats_user}:${POSTGRES_PASSWORD:-ats_password}@db:5432/${POSTGRES_DB:-ats_db}
-      SECRET_KEY: ${SECRET_KEY:-supersecretkey_ats_2026}
-      LINKEDIN_CLIENT_ID: ${LINKEDIN_CLIENT_ID:-mock_client_id}
-      LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET:-mock_client_secret}
+      # Sin valor por defecto a propósito: firma los JWT. Si falta, compose se niega
+      # a levantar en vez de arrancar con una clave que cualquiera puede adivinar.
+      SECRET_KEY: '${SECRET_KEY:?falta SECRET_KEY - copia .env.example a .env y genera uno con python -c "import secrets; print(secrets.token_urlsafe(48))"}'
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
     volumes:
       - ./backend:/app
+      # Las imágenes de los posts viven aquí: sobreviven a `docker compose down`,
+      # no a `down -v`. Fuera del bind de ./backend para no acabar en git.
+      - media_data:/app/media
     depends_on:
       db:
         condition: service_healthy
@@ -58,3 +61,4 @@ services:
 
 volumes:
   postgres_data:
+  media_data:

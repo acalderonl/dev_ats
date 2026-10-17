@@ -14,14 +14,11 @@ router = APIRouter()
 
 @router.get("/metrics", response_model=DashboardMetricsOut)
 def obtener_metricas(db: Session = Depends(get_db), _: Usuario = Depends(get_current_user)) -> DashboardMetricsOut:
-    vacantes_activas = db.scalar(select(func.count()).select_from(Vacante).where(Vacante.estado == "activa")) or 0
+    vacantes_activas = db.scalar(select(func.count()).select_from(Vacante).where(Vacante.estado == "abierta")) or 0
     vacantes_expiradas = db.scalar(select(func.count()).select_from(Vacante).where(Vacante.estado == "expirada")) or 0
     postulaciones_totales = db.scalar(select(func.count()).select_from(Postulacion)) or 0
     entrevistas_pendientes = (
-        db.scalar(
-            select(func.count()).select_from(Postulacion).where(Postulacion.estado_pipeline == "entrevista")
-        )
-        or 0
+        db.scalar(select(func.count()).select_from(Postulacion).where(Postulacion.estado_pipeline == "entrevista")) or 0
     )
 
     por_etapa = db.execute(

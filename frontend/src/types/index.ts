@@ -10,12 +10,97 @@ export interface Usuario {
   creado_en: string
 }
 
-export interface Cargo {
+export interface Actividad {
+  texto: string
+  favorita: boolean
+}
+
+/** Tramos de la barra de experiencia; el orden es el que se dibuja. */
+export type ExperienciaRequerida = 'ninguna' | 'hasta_1' | '1_a_3' | '3_a_5' | 'mas_de_5'
+
+export const EXPERIENCIA_TRAMOS: { valor: ExperienciaRequerida; etiqueta: string }[] = [
+  { valor: 'ninguna', etiqueta: '0 años' },
+  { valor: 'hasta_1', etiqueta: '1 año o menos' },
+  { valor: '1_a_3', etiqueta: '1 a 3 años' },
+  { valor: '3_a_5', etiqueta: '3 a 5 años' },
+  { valor: 'mas_de_5', etiqueta: '5 años en adelante' },
+]
+
+export type TipoCompetencia = 'academico' | 'blanda'
+
+export interface Competencia {
   id: number
   nombre: string
-  departamento: string | null
-  descripcion: string | null
+  tipo: TipoCompetencia
   activo: boolean
+  /** En cuántos cargos se usa ya: ayuda a reutilizar la establecida en vez de crear otra. */
+  usos: number
+  /** 0 a 1. Solo llega al buscar: cuánto se parece a lo escrito. */
+  similitud: number | null
+}
+
+export interface CompetenciaDelCargo {
+  competencia_id: number
+  nombre: string
+  tipo: TipoCompetencia
+  requerido: boolean
+  deseado: boolean
+}
+
+export interface Cargo {
+  id: number
+  nombre_id: number
+  nombre: string
+  tiene_personal_a_cargo: boolean
+  clasificacion_id: number | null
+  clasificacion: string | null
+  mision: string | null
+  actividades: Actividad[]
+  niveles_educacion: NivelDelCargo[]
+  titulos: ItemDeEducacion[]
+  areas_academicas: ItemDeEducacion[]
+  experiencia_requerida: ExperienciaRequerida | null
+  experiencia_empresas_similares: boolean
+  experiencia_cargos_similares: boolean
+  experiencia_interna_otros_cargos: boolean
+  competencias: CompetenciaDelCargo[]
+  activo: boolean
+}
+
+/** Los catálogos que alimentan los selectores de los formularios. */
+export type CatalogoTipo =
+  | 'nombres-cargo'
+  | 'clasificaciones'
+  | 'niveles-educacion'
+  | 'titulos'
+  | 'areas-academicas'
+  | 'tipos-contrato'
+
+/** Si el nivel de educación se exige terminado o basta con estar cursándolo. */
+export type EstadoEducacion = 'completa' | 'en_curso'
+
+/** Tope de la sección 4: como mucho dos niveles, dos títulos y dos áreas por cargo. */
+export const MAXIMO_EDUCACION = 2
+
+/** Un nivel exigido por el cargo, con su propio estado. */
+export interface NivelDelCargo {
+  nivel_id: number
+  estado: EstadoEducacion
+  nombre: string
+}
+
+/** Un título o un área ya elegidos por el cargo. */
+export interface ItemDeEducacion {
+  id: number
+  nombre: string
+}
+
+export interface CatalogoItem {
+  id: number
+  nombre: string
+  activo: boolean
+  /** Si algún cargo lo usa; la UI lo necesita para no ofrecer un borrado que el backend rechaza. */
+  en_uso: boolean
 }
 
 export type TipoRespuesta = 'multiple' | 'unica' | 'texto' | 'booleano' | 'numero'
@@ -30,17 +115,45 @@ export interface PreguntaFiltro {
   respuesta_correcta: string | null
 }
 
-export type EstadoVacante = 'activa' | 'expirada' | 'cerrada'
+export type EstadoVacante = "borrador" | "abierta" | "cerrada"
+export type EstadoDelPost = "borrador" | "programado" | "publicado" | "error"
+export type VisibilidadVacante = "publica" | "interna" | "mixta"
+
+export interface CampoPersonalizado {
+  etiqueta: string
+  valor: string
+}
 
 export interface Vacante {
   id: string
-  titulo: string
   cargo_id: number
+  titulo: string
   descripcion: string
-  documento_adjunto_url: string | null
   slug: string
   fecha_limite: string
+
+  remuneracion: string | null
+  jornada_horas: string | null
+  hora_entrada: string | null
+  hora_salida: string | null
+  tipo_contrato_id: number | null
+  tipo_contrato_nombre: string | null
+  campos_personalizados: CampoPersonalizado[]
+
+  asunto: string | null
+  post_cuerpo: string | null
+  post_imagen_url: string | null
+  post_programado_para: string | null
+  post_estado: EstadoDelPost
+  post_publicado_en: string | null
+  post_error: string | null
   linkedin_post_id: string | null
+
+  visibilidad: VisibilidadVacante
+  destinatarios_internos: string[]
+  enviado_internamente_en: string | null
+
+  url_publica: string | null
   empleador_id: string
   estado: EstadoVacante
   creado_en: string
@@ -53,7 +166,62 @@ export interface VacantePublica {
   slug: string
   fecha_limite: string
   cargo_nombre: string
+  remuneracion: string | null
+  hora_entrada: string | null
+  hora_salida: string | null
+  tipo_contrato: string | null
+  campos_personalizados: CampoPersonalizado[]
   preguntas_filtro: PreguntaFiltro[]
+}
+
+export interface VistaPreviaDelPost {
+  asunto: string
+  cuerpo: string
+  imagen_url: string | null
+  enlace_para_postular: string
+  visibilidad: VisibilidadVacante
+  destinatarios_internos: string[]
+  programado_para: string | null
+  caracteres: number
+}
+
+export interface Jornada {
+  id: number
+  nombre: string
+  horas: string
+  activo: boolean
+}
+
+/** Cómo se conecta el sistema para enviar correo. */
+export type TipoDeCorreo = 'gmail' | 'smtp'
+export type CifradoSmtp = 'ssl' | 'starttls' | 'ninguna'
+
+export interface ConfiguracionGeneral {
+  empresa_nombre: string | null
+  linkedin_client_id: string | null
+  linkedin_redirect_uri: string | null
+  correo_tipo: TipoDeCorreo | null
+  gmail_remitente: string | null
+  smtp_servidor: string | null
+  smtp_puerto: string | null
+  smtp_cifrado: CifradoSmtp | null
+  smtp_usuario: string | null
+  smtp_remitente: string | null
+  dominios_corporativos: string | null
+  linkedin_client_secret_configurado: boolean
+  linkedin_client_secret_pista: string | null
+  gmail_password_app_configurado: boolean
+  gmail_password_app_pista: string | null
+  smtp_password_configurado: boolean
+  smtp_password_pista: string | null
+}
+
+export interface EstadoLinkedIn {
+  credenciales_configuradas: boolean
+  cuenta_conectada: boolean
+  nombre_en_linkedin: string | null
+  expira_en: string | null
+  correo_configurado: boolean
 }
 
 export interface FormacionSecundaria {
@@ -157,4 +325,50 @@ export interface DashboardMetrics {
   postulaciones_por_etapa: { estado: string; total: number }[]
   postulaciones_por_origen: { origen: string; total: number }[]
   entrevistas_pendientes: number
+}
+
+// --- Roles y permisos ---
+
+export interface Permiso {
+  id: number
+  clave: string
+  modulo: string
+  accion: string
+  etiqueta: string
+}
+
+export interface Rol {
+  id: number
+  nombre: string
+  descripcion: string | null
+  es_sistema: boolean
+  activo: boolean
+  permisos: string[]
+  usuarios_asignados: number
+}
+
+/** Lo que la pantalla necesita para pintar las casillas sin adivinar. */
+export interface PermisosDeUsuario {
+  rol: string
+  es_super_admin: boolean
+  /** Lo que trae su rol de fábrica. */
+  del_rol: string[]
+  /** Las excepciones puestas a esta persona: clave -> concedido. */
+  ajustes: Record<string, boolean>
+  /** El resultado de aplicar unas sobre otras. */
+  efectivos: string[]
+}
+
+/** Una competencia que otros cargos ya usan, con cuántos la usan. */
+export interface CompetenciaSugerida {
+  id: number
+  nombre: string
+  usos: number
+}
+
+/** Lo que piden los cargos de una misma clasificación. */
+export interface GrupoPorClasificacion {
+  clasificacion_id: number | null
+  clasificacion: string
+  competencias: CompetenciaSugerida[]
 }

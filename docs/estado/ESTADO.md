@@ -1,23 +1,28 @@
 # Estado del proyecto — dónde estamos AHORA
 
-> Última actualización: **2026-10-01** · Días trabajados: **3** · Commits: **1**
+> Última actualización: **2026-10-16** · Sesiones: **8** (en 7 días) · Pruebas: **137 en verde**
 > Este archivo se lee al empezar cada sesión. Si algo aquí ya no es cierto, se corrige antes de seguir.
 
 ## En una línea
 
-Los 7 módulos del ATS están **construidos en su versión base** y el stack corre con Docker Compose,
-pero **la suite de pruebas nunca se ha ejecutado** y hay **4 puertas de seguridad abiertas** que impiden
-salir a internet. El destino es producción real, así que ambas cosas van antes que cualquier mejora.
+**S.1 está cerrada**: `SECRET_KEY` ya no tiene valor por defecto y la aplicación no arranca sin
+ella. Los módulos de **Cargos (M1)** y **Vacantes** están rehechos: la vacante es ahora una
+publicación con estados, alcance y post, y la aplicación lleva la **marca de la ANAI**. Quedan
+**4 puertas de seguridad** de las 5.
 
 ## Fase activa
 
 | | |
 |---|---|
-| **Fase** | `T.1 — Correr la suite por primera vez` |
-| **Etapa** | 1 de 6 — Terreno firme |
-| **Por qué esta** | Hay 19 pruebas escritas que nunca corrieron. Mientras no estén en verde, ninguna afirmación sobre los otros módulos está respaldada. |
-| **Terminada cuando** | `docker compose exec backend pytest` pasa en verde y el resultado queda anotado en la bitácora. |
-| **Antes hay que** | Levantar Docker Desktop: está apagado desde el reinicio del 29-sep. |
+| **Fase** | `S.2 — El seed no debe correr en producción` |
+| **Etapa** | 2 de 6 — Bloqueantes de seguridad |
+| **Por qué esta** | `main.py:18` corre el seed en cada arranque sin mirar el entorno. **Ya pasó en desarrollo**: el dueño renombró `admin@atsdemo.com` el 14-oct y el seed volvió a crearlo en el siguiente arranque, con `Demo1234!`, que está publicada en este repo. Hoy hay 5 usuarios, dos de ellos cuentas de demo recreadas. Dejó de ser un riesgo teórico. |
+| **Terminada cuando** | El seed solo corre si el entorno lo pide explícitamente, y nunca crea usuarios de demo fuera de desarrollo. |
+| **Antes hay que** | Levantar el entorno: `docker compose up -d`. |
+
+> ⚠️ **Si el entorno no levanta**: desde el día 6 hace falta un `.env` con `SECRET_KEY`. Copia
+> `.env.example` a `.env` y genera una con
+> `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
 
 ## El camino (6 etapas, 37 fases)
 
@@ -39,27 +44,87 @@ Leyenda: 🟢 base funcionando · 🟡 base funcionando con huecos conocidos · 
 
 | Módulo | Estado | Verificado | Siguiente fase | Etapa |
 |---|---|---|---|---|
-| **M1** Cargos, vacantes e integraciones | 🟡 | Crear vacante (a mano, en el navegador) | M1.1 subir el documento | 3 |
+| **M1** Cargos, vacantes e integraciones | 🟢 | Cargos y vacantes: crear, editar y estados, **con pruebas**. Imagen del post y cifrado de secretos comprobados en la base | M1.6 publicar a la hora programada | 4 |
 | **M2** Portal público y parsing de CV | 🟡 | ❌ nada | M2.1 guardar el CV de verdad | 3 |
-| **M3** Pipeline de reclutamiento | 🟡 | ❌ nada | M3.3 puntuación de coincidencia | 4 |
-| **M4** Directorio de contactos | 🟡 | ❌ nada | M4.1 exportar de verdad | 4 |
+| **M3** Pipeline de reclutamiento | 🟡 | Reglas de transición, **con pruebas** | M3.3 puntuación de coincidencia | 4 |
+| **M4** Directorio de contactos | 🟡 | Búsqueda, **con pruebas** | M4.1 exportar de verdad | 4 |
 | **M5** Evaluaciones | 🟡 | ❌ nada | M5.1 scorecard consolidado | 4 |
 | **M6** Dashboard | 🟡 | Carga y dibuja (a mano) | M6.1 volumen en el tiempo | 6 |
-| **M7** Usuarios y roles | 🟡 | Login con los 3 roles (a mano) | M7.1 guardas de ruta | 4 |
-| **S** Seguridad | 🔴 | 4 fallos **confirmados** en el código | S.1 secretos fuera del código | 2 |
-| **T** Transversal | 🟡 | Stack arriba, 2 bugs corregidos | **T.1 correr la suite** ⬅ activa | 1 |
+| **M7** Usuarios y roles | 🟢 | CRUD de usuarios y roles, y permisos por módulo con ajuste por usuario, **con pruebas**. Comprobado en la base que una excepción guarda una fila, no una copia del rol | M7.2 el menú por permisos, no por rol | 4 |
+| **S** Seguridad | 🟡 | S.1 cerrada y verificada con control positivo y negativo. Quedan 3 fallos confirmados | **S.2 el seed en producción** ⬅ activa | 2 |
+| **T** Transversal | 🟢 | Suite corriendo, aislada y sin fuga | T.2 validar por mutación | 1 |
+
+### Qué tiene hoy el módulo de Cargos (M1)
+
+Un cargo ya no es un nombre y una descripción: es un **descriptivo de puesto** con siete bloques
+—identificación, misión, actividades, educación formal, formación, habilidades blandas y
+experiencia—. Los valores repetibles viven en catálogos con su propio CRUD (el engranaje junto a
+cada selector), y las competencias se comparten entre cargos con detección de parecidos para que
+no se dupliquen escritas de formas distintas.
+
+La educación formal admite **hasta dos** niveles, títulos y áreas; cada nivel con su propio estado
+(completa / en curso). La experiencia suma un checklist de tres exigencias. Al escribir una
+competencia parecida a una existente, **no se puede crear**: hay que elegir la que ya está.
+
+El modal mantiene la cabecera fija al hacer scroll y **pregunta antes de cerrarse** —con la X o
+con un clic fuera—, para que un descuido no borre las siete secciones. La pregunta es opcional
+en el componente: los modales que ya son una confirmación cierran al primer clic.
 
 La columna **Verificado** solo dice lo que se comprobó de verdad. "A mano" significa que una persona lo
 usó en el navegador: no es una prueba automática y no protege contra regresiones.
 
+### Qué tiene hoy el módulo de Vacantes
+
+Una vacante es **un cargo puesto en circulación**: se elige el cargo y el título sale de él. Lleva
+remuneración, horario (jornada + entrada, con la salida calculada), tipo de contrato y los campos
+adicionales que haga falta inventar.
+
+Tres cosas que se confunden y aquí son distintas: **estado** (borrador/abierta/cerrada), **estado del
+post** (borrador/programado/publicado/error) y **visibilidad** (pública/interna/mixta). Una vacante
+interna no aparece en el portal público aunque esté abierta y alguien tenga el enlace.
+
+La pantalla de **Configuración** guarda las credenciales **cifradas** y no las devuelve nunca:
+muestra si están puestas y sus últimos cuatro caracteres. El correo admite **Gmail/Workspace o
+cualquier servidor SMTP institucional**, con un botón que prueba la conexión sin enviar nada.
+
+### Usuarios, roles y permisos
+
+Los usuarios se crean, editan y desactivan —**nunca se borran**: son los autores de las
+vacantes que publicaron y las evaluaciones que pusieron—. Los roles se crean y se editan,
+salvo los tres del sistema, cuyo nombre el código todavía referencia.
+
+Los permisos son **27, sacados del menú lateral**: uno por cada acción real de cada pantalla.
+Se resuelven en dos niveles: el rol da la plantilla y cada usuario admite excepciones en
+ambos sentidos. Se guarda solo la diferencia, así que cambiar la plantilla de un rol la
+heredan sus usuarios en vez de quedarse con una copia congelada.
+
+⚠️ `require_permission` convive con `require_roles`: los 33 endpoints antiguos siguen
+protegidos por rol. **Hasta migrarlos, lo que se marca en los otros módulos no gobierna el
+backend**, y el menú lateral sigue ocultándose por rol.
+
+### La marca
+
+La aplicación es de la **Academia Naval Almirante Illingworth**: escudo, nombre y colores reales
+del sitio de la institución (`#0064b4` institucional, `#003462` franjas, `#20395f` escudo). El
+azul institucional vive en `brand-600` de Tailwind, que es lo que ya usaba toda la interfaz.
+
 ## Lo más urgente, en una frase
 
-`SECRET_KEY` tiene un valor por defecto que está publicado en GitHub. Con él se puede **fabricar un
-token de super admin sin contraseña**. Mientras el sistema solo corra en tu equipo no hay riesgo, pero
-es lo primero que hay que cerrar antes de que esto toque internet (fase S.1).
+El seed corre en cada arranque sin mirar el entorno: en un servidor real **crearía un super admin con
+una contraseña que está publicada en este repositorio** (fase S.2).
+
+## Lo que necesita tu intervención
+
+| Qué | Por qué está parado |
+|---|---|
+| **App de LinkedIn** | Hay que crearla en developer.linkedin.com y pegar Client ID, Secret y Redirect URI en Configuración. Hasta entonces, publicar queda en **modo simulado** y lo dice. |
+| **Contraseña de aplicación de Gmail** | Con verificación en dos pasos activada, generarla en la cuenta de Google. Sin eso no hay envío interno. |
+| **Publicar a la hora programada** | La fecha se guarda, pero **nada la ejecuta todavía**: hoy hay que pulsar el botón. Necesita un proceso aparte (fase M1.6). |
 
 ## Entorno
 
+- **Las pruebas no tocan la base de desarrollo**: corren contra `ats_test_db`, que se recrea desde
+  las migraciones en cada ejecución. Comprobado con control positivo (contar filas antes y después).
 - Código real en `C:\Users\abdon\OneDrive\Documentos\DEV\dev_ats` (OneDrive, **no** en `Documents`).
 - Repo: https://github.com/acalderonl/dev_ats (**público**, rama `main`).
 - En el host hay Git y GitHub CLI; **no** hay Node ni Python: todo se compila y prueba dentro de los contenedores.
@@ -72,4 +137,5 @@ es lo primero que hay que cerrar antes de que esto toque internet (fase S.1).
 3. **Al terminar**: anotar el día en `BITACORA.md`. Para no inventar lo que se hizo:
    `git log --since=midnight --format="%h %s"`
 
-Las reglas de qué significa "terminado" están en `FASES.md`.
+Las reglas de qué significa "terminado" están en `FASES.md`. El arranque concreto de la próxima
+sesión está en `PROXIMA_SESION.md`.
