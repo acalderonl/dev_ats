@@ -12,6 +12,7 @@ from app.api.v1 import (
     media,
     postulaciones,
     public,
+    roles,
     usuarios,
     vacantes,
 )
@@ -19,6 +20,7 @@ from app.api.v1 import (
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["Autenticación"])
 api_router.include_router(usuarios.router, prefix="/users", tags=["Usuarios"])
+api_router.include_router(roles.router, prefix="/roles", tags=["Roles y permisos"])
 api_router.include_router(cargos.router, prefix="/cargos", tags=["Cargos"])
 api_router.include_router(catalogos.router, prefix="/catalogos", tags=["Catálogos"])
 api_router.include_router(competencias.router, prefix="/competencias", tags=["Competencias"])

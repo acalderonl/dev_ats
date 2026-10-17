@@ -1,5 +1,6 @@
 from app.core.database import Base
 from app.models.rol import Rol
+from app.models.permiso import Permiso, RolPermiso, UsuarioPermiso
 from app.models.usuario import Usuario
 from app.models.nombre_cargo import NombreCargo
 from app.models.clasificacion_cargo import ClasificacionCargo
@@ -24,6 +25,9 @@ from app.models.evaluacion import Evaluacion
 __all__ = [
     "Base",
     "Rol",
+    "Permiso",
+    "RolPermiso",
+    "UsuarioPermiso",
     "Usuario",
     "NombreCargo",
     "ClasificacionCargo",

@@ -81,13 +81,23 @@ DEMO_CARGOS = [
 
 
 def seed_roles(db: Session) -> dict[str, Rol]:
+    """Crea los tres roles base, marcados como **del sistema**.
+
+    El `es_sistema=True` no es decorativo: protege contra renombrarlos, y el código
+    todavía nombra estos roles en `require_roles(...)`. La migración 0008 marca los
+    que ya existían, pero en una instalación nueva las filas las crea esta función,
+    así que sin este argumento quedarían desprotegidas.
+    """
     roles_por_nombre: dict[str, Rol] = {}
     for nombre in ROLES:
         rol = db.scalar(select(Rol).where(Rol.nombre == nombre))
         if rol is None:
-            rol = Rol(nombre=nombre)
+            rol = Rol(nombre=nombre, es_sistema=True)
             db.add(rol)
             db.flush()
+        elif not rol.es_sistema:
+            # Por si la fila viene de antes de que existiera la marca.
+            rol.es_sistema = True
         roles_por_nombre[nombre] = rol
     db.commit()
     return roles_por_nombre

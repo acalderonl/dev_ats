@@ -7,6 +7,7 @@ from app.api.v1 import api_router
 from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.seed import run_seed
+from app.seed_permisos import sembrar_permisos
 
 settings = get_settings()
 
@@ -16,6 +17,8 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         run_seed(db)
+        # Después del seed: necesita que los roles existan para asignarles la plantilla.
+        sembrar_permisos(db)
     finally:
         db.close()
     yield
