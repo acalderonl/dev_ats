@@ -1,0 +1,5 @@
+[tool.black]
+# El proyecto está escrito a ~120 columnas. Sin esto, `black app/` usaría su ancho
+# por defecto (88) y reformatearía todo el código de golpe.
+line-length = 120
+target-version = ["py312"]

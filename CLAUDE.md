@@ -13,6 +13,21 @@ Frontend (React/Vite) con Docker Compose, siguiendo `docs/objetivo_general-v2.md
 `docs/architecture_plan-v2.md`. "Construido" no es "verificado": lo comprobado de verdad, módulo
 por módulo, está en `docs/estado/ESTADO.md`.
 
+## 🔴 Antes de levantar: hace falta un `.env`
+
+`SECRET_KEY` **no tiene valor por defecto** (fase S.1, cerrada el 2026-10-12): firma los JWT y
+antes traía un valor publicado en este repositorio. Si falta, la aplicación no arranca y
+`docker compose` se niega a levantar.
+
+```bash
+cp .env.example .env
+```
+
+Dentro, una clave propia: `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
+
+De esa clave **se deriva el cifrado de los secretos** guardados desde la pantalla de Configuración
+(LinkedIn, correo). Rotarla invalida las sesiones abiertas y obliga a reintroducir esos secretos.
+
 ## Comandos de Docker Compose
 
 - **Levantar todo el entorno**: `docker compose up --build`
@@ -34,6 +49,9 @@ la imagen, salvo que cambien las dependencias (`requirements.txt` / `package.jso
 ## Backend (Python 3.12 / FastAPI / SQLAlchemy / Alembic)
 
 - **Ejecutar pruebas**: `docker compose exec backend pytest`
+  🔴 Corren contra `ats_test_db`, **nunca** contra la base de desarrollo, y la recrean desde las
+  migraciones en cada ejecución (`tests/conftest.py`). Si alguna prueba deja datos en `ats_db`, hay
+  una fuga y se arregla en la configuración, no borrando a mano.
 - **Pruebas con cobertura**: `docker compose exec backend pytest --cov=app`
 - **Generar una migración nueva**: `docker compose exec backend alembic revision --autogenerate -m "descripcion"`
 - **Aplicar migraciones manualmente**: `docker compose exec backend alembic upgrade head`
@@ -45,12 +63,15 @@ la imagen, salvo que cambien las dependencias (`requirements.txt` / `package.jso
 
 ```
 backend/app/
-├── api/v1/        # Routers REST: auth, users, cargos, vacantes, public, postulaciones,
-│                  # evaluaciones (anidado bajo /postulaciones), contactos, dashboard
-├── core/          # config.py (Settings), database.py (engine/session), security.py (JWT/RBAC), utils.py (slug)
+├── api/v1/        # Routers REST: auth, users, cargos, catalogos, competencias, vacantes,
+│                  # public, postulaciones, evaluaciones (anidado bajo /postulaciones),
+│                  # contactos, dashboard, configuracion, media
+├── core/          # config.py (Settings + clave de cifrado), database.py, security.py (JWT/RBAC), utils.py (slug)
 ├── models/        # Modelos SQLAlchemy 2.0, uno por tabla (roles, usuarios, cargos, ...)
 ├── schemas/       # Pydantic: *Create / *Out por recurso
-├── services/      # Lógica de negocio: cv_parser_service, linkedin_service, whatsapp_service,
+├── services/      # Lógica de negocio: cv_parser_service, linkedin_service, correo_service,
+│                  # whatsapp_service, almacenamiento_service (imágenes),
+│                  # configuracion_service (secretos cifrados),
 │                  # pipeline_service (reglas de transición), evaluation_service
 ├── seed.py        # Seed idempotente: roles, usuarios demo, cargos demo (corre en el startup)
 └── main.py        # App FastAPI, CORS, lifespan (seed), monta /api/v1
@@ -60,6 +81,20 @@ backend/app/
 en los routers en lugar de una capa `repositories/` separada (que sí se menciona en
 `docs/architecture_plan-v2.md`). Es una decisión consciente para este tamaño de proyecto,
 no una omisión.
+
+### Módulo de Cargos (el más desarrollado)
+
+Un cargo es un **descriptivo de puesto**: identificación, misión, actividades (con favoritas, que
+suben al principio), educación formal, formación, habilidades blandas y experiencia requerida.
+
+- Los valores repetibles viven en **catálogos** (`/api/v1/catalogos/{catalogo}`): nombres de cargo,
+  clasificaciones, niveles de educación, títulos y áreas académicas. Un router genérico los sirve a
+  todos; añadir uno nuevo es una entrada en el diccionario `CATALOGOS` más su tabla.
+- Las **competencias** (`/api/v1/competencias`) se comparten entre cargos. Para que no se dupliquen
+  escritas de formas distintas: `nombre_normalizado` (sin tildes ni mayúsculas) es único por tipo, y
+  la búsqueda sugiere las parecidas con trigramas (`pg_trgm`).
+- En la interfaz, la tarjeta de un cargo lo abre para editar; su estado es el botón de activar o
+  desactivar, con confirmación.
 
 ### Autenticación y roles
 
@@ -83,13 +118,58 @@ adivinar nombre, email, teléfono, cédula, nivel de instrucción y experiencia 
 El formato `.doc` binario legado no es soportado (se pide convertir a `.docx`/`.pdf`).
 Es un punto de partida funcional, no un extractor de precisión garantizada.
 
-### LinkedIn / WhatsApp
+### Módulo de Vacantes
 
-- `linkedin_service.py`: en modo mock (credenciales por defecto) genera un
-  `linkedin_post_id` determinístico sin llamar a ninguna API externa real. El código
-  para la integración real está documentado en comentarios dentro del archivo.
+Una vacante es **un cargo puesto en circulación**: no se escribe un título, se elige el cargo y el
+título se copia de él. Es una copia y no un `join` a propósito: de ella sale el `slug`, que es la
+URL pública, y si siguiera al catálogo, renombrar un cargo rompería enlaces ya repartidos.
+
+Tres conceptos que se confunden y son columnas distintas:
+
+- `estado`: borrador / abierta / cerrada (el proceso de selección).
+- `post_estado`: borrador / programado / publicado / error (la publicación).
+- `visibilidad`: publica / interna / mixta (a quién llega).
+
+Una vacante **interna** no aparece en el portal público aunque esté abierta y alguien tenga el
+enlace, y no se puede publicar en LinkedIn.
+
+### Configuración (`/configuracion`, solo `super_admin`)
+
+Credenciales de LinkedIn y de correo, dominios corporativos y jornadas laborales. Los valores
+marcados como secretos **se guardan cifrados** (Fernet, clave derivada de `SECRET_KEY`) y la API
+**nunca los devuelve**: informa de si están puestos y de sus últimos cuatro caracteres.
+
+Un campo ausente en el `PUT` no se toca. Importa: la pantalla manda los secretos vacíos porque no
+los recibe; si vacío significara "borrar", guardar cualquier otra cosa mataría la integración.
+
+### LinkedIn / correo / WhatsApp
+
+- `linkedin_service.py`: publica en **el muro del reclutador** que conecta su cuenta, que es la
+  única vía sin aprobación de partner (productos *Sign In with LinkedIn (OIDC)* + *Share on
+  LinkedIn*, scope `w_member_social`). La página de empresa (Community Management API) y el tablón
+  de empleos (Talent Solutions) **exigen ser partner aprobado**. Sin credenciales queda en **modo
+  simulado** y lo declara, en vez de aparentar que algo salió a internet.
+  ⚠️ El token de autoservicio dura ~60 días y **no hay refresh token** fuera del programa de
+  partners: hay que volver a conectar.
+- `correo_service.py`: dos conexiones a elegir, **Gmail/Workspace** (servidor y puerto fijos,
+  contraseña de aplicación) o **cualquier servidor SMTP** (servidor, puerto, cifrado, usuario).
+  Hay un endpoint que prueba la conexión sin enviar nada.
 - `whatsapp_service.py`: genera un enlace `https://api.whatsapp.com/send?text=...`
   (no requiere credenciales, es solo construcción de URL).
+
+### Archivos subidos
+
+`almacenamiento_service.py` guarda la imagen del post en el volumen `media_data` (sobrevive a
+`docker compose down`, **no** a `down -v`) y la sirve `/api/v1/media`. Se valida **el tipo real por
+los bytes, no la extensión**, el tamaño leyendo a trozos, y el nombre lo genera el servidor: el del
+archivo subido no se usa nunca para construir la ruta.
+
+## Marca
+
+La aplicación es de la **Academia Naval Almirante Illingworth (ANAI)**. El escudo está en
+`frontend/public/escudo-anai.svg` y los colores reales de la institución viven en
+`tailwind.config.js`: `#0064b4` institucional (en `brand-600`, que es lo que ya usaba toda la
+interfaz), `#003462` para franjas, `#1ea7fd` de acento y `#20395f` el azul del escudo.
 
 ## Frontend (React 18 / Vite / TypeScript / Tailwind)
 
@@ -115,11 +195,15 @@ frontend/src/
 - **TypeScript**: estricto, componentes funcionales con hooks, Tailwind para estilos.
 - **Flujo de trabajo agéntico**: Vertical Slices (DB → API → UI → Tests) por módulo.
 
-## Próximos pasos no implementados (fuera de alcance de esta fase)
+## Próximos pasos no implementados
 
-- Subida real de archivos (CVs, documentos de vacante) a almacenamiento persistente
-  (hoy el CV se analiza en memoria y `cv_documento_url` queda como placeholder).
-- Integración real con LinkedIn Job Posting API (hoy en modo mock).
+- **Publicar a la hora programada.** La fecha se guarda, pero nada la ejecuta: hoy hay que pulsar
+  el botón. Falta un proceso que lo haga (fase M1.6). La pantalla lo advierte.
+- **El seed corre en cada arranque sin mirar el entorno** (`main.py:18`): en un servidor real
+  crearía un super admin con una contraseña publicada. Es la fase activa (S.2).
+- **El CV del candidato se sigue analizando en memoria y tirando** (`cv_documento_url` es un
+  relleno). La imagen del post ya va a un volumen: el CV puede seguir el mismo camino (M2.1).
+- Crear preguntas filtro desde la aplicación (M1.5): hoy solo existen las del seed.
 - Capa `repositories/` separada de los routers.
 - Guardas de ruta en el frontend por rol (hoy solo se oculta la navegación; el backend
   sí aplica RBAC en cada endpoint).

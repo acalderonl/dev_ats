@@ -7,6 +7,9 @@ pydantic==2.10.2
 email-validator==2.2.0
 pydantic-settings==2.6.1
 python-jose[cryptography]==3.3.0
+# Se usa directamente para cifrar los secretos de Configuracion (Fernet + HKDF),
+# no solo como dependencia de python-jose: va declarada.
+cryptography==43.0.3
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 python-multipart==0.0.17
@@ -14,6 +17,8 @@ pdfplumber==0.11.4
 python-docx==1.1.2
 docx2txt==0.8
 httpx==0.28.0
+# Lectura del CV con Claude (app/services/extraccion_cv_service.py).
+anthropic==1.14.0
 pytest==8.3.3
 pytest-cov==6.0.0
 black==24.10.0
