@@ -4,9 +4,12 @@ Se ejecuta en el evento de startup de la aplicación (ver app/main.py). Es segur
 llamarlo múltiples veces: cada bloque verifica si ya existe el dato antes de crearlo.
 """
 
-from sqlalchemy import select
+import logging
+
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.security import hash_password
 from app.models.cargo import Cargo
 from app.models.cargo_educacion import CargoAreaAcademica, CargoNivelEducacion
@@ -16,6 +19,8 @@ from app.models.nombre_cargo import NombreCargo
 from app.models.pregunta_filtro import PreguntaFiltro
 from app.models.rol import Rol
 from app.models.usuario import Usuario
+
+logger = logging.getLogger(__name__)
 
 ROLES = ["super_admin", "reclutador", "entrevistador"]
 
@@ -103,20 +108,70 @@ def seed_roles(db: Session) -> dict[str, Rol]:
     return roles_por_nombre
 
 
+def _hay_usuarios(db: Session) -> bool:
+    return db.scalar(select(func.count()).select_from(Usuario)) > 0
+
+
 def seed_demo_users(db: Session, roles_por_nombre: dict[str, Rol]) -> None:
+    """Crea las cuentas de demo, **solo en una base sin ningún usuario**.
+
+    Antes comprobaba cuenta por cuenta si existía ese correo. Eso tenía un efecto que
+    se vio en desarrollo el 14 de octubre: al renombrar `admin@atsdemo.com` desde la
+    pantalla, el siguiente arranque **volvía a crearlo**, porque ya no encontraba ese
+    correo. Quedaban cuentas con una contraseña publicada que nadie había pedido.
+
+    Mirando si hay algún usuario, el seed solo actúa en una instalación nueva y nunca
+    deshace lo que una persona decidió después.
+    """
+    if _hay_usuarios(db):
+        return
+
     for email, password, nombres, apellidos, rol_nombre in DEMO_USERS:
-        existente = db.scalar(select(Usuario).where(Usuario.email == email))
-        if existente is not None:
-            continue
-        usuario = Usuario(
-            email=email,
-            password_hash=hash_password(password),
-            nombres=nombres,
-            apellidos=apellidos,
-            rol_id=roles_por_nombre[rol_nombre].id,
+        db.add(
+            Usuario(
+                email=email,
+                password_hash=hash_password(password),
+                nombres=nombres,
+                apellidos=apellidos,
+                rol_id=roles_por_nombre[rol_nombre].id,
+            )
         )
-        db.add(usuario)
     db.commit()
+    logger.warning(
+        "Creadas %s cuentas de DEMO con contraseña conocida. Esto solo debe pasar en desarrollo.",
+        len(DEMO_USERS),
+    )
+
+
+def seed_admin_inicial(db: Session, roles_por_nombre: dict[str, Rol]) -> None:
+    """El primer administrador en producción, desde variables de entorno.
+
+    Solo si la base no tiene ningún usuario. No hay contraseña por defecto: si faltan
+    las variables, no se crea nadie y se dice en el log. Un sistema sin administrador
+    es un problema visible; uno con un administrador de contraseña adivinable, no.
+    """
+    ajustes = get_settings()
+    if _hay_usuarios(db):
+        return
+
+    if not (ajustes.admin_inicial_email and ajustes.admin_inicial_password):
+        logger.error(
+            "No hay ningún usuario y faltan ADMIN_INICIAL_EMAIL/ADMIN_INICIAL_PASSWORD: "
+            "nadie puede entrar. Defínelas y reinicia."
+        )
+        return
+
+    db.add(
+        Usuario(
+            email=ajustes.admin_inicial_email,
+            password_hash=hash_password(ajustes.admin_inicial_password),
+            nombres="Administrador",
+            apellidos="ANAI",
+            rol_id=roles_por_nombre["super_admin"].id,
+        )
+    )
+    db.commit()
+    logger.info("Creado el administrador inicial %s. Cambia su contraseña al entrar.", ajustes.admin_inicial_email)
 
 
 # Niveles de la Ley Orgánica de Educación Superior (LOES) de Ecuador, más los previos.
@@ -233,7 +288,23 @@ def seed_demo_cargos(db: Session) -> None:
 
 
 def run_seed(db: Session) -> None:
+    """Siembra lo imprescindible, y los datos de demo **solo fuera de producción**.
+
+    Qué va en los dos casos: los roles y los catálogos de educación. Sin ellos la
+    aplicación no funciona —no se puede crear un cargo sin niveles ni títulos— así que
+    no son "datos de ejemplo", son parte del sistema.
+
+    Qué NO va a producción: las tres cuentas de demo, con una contraseña que está
+    publicada en este repositorio, y los cargos de ejemplo.
+    """
+    ajustes = get_settings()
     seed_catalogos_educacion(db)
     roles_por_nombre = seed_roles(db)
+
+    if ajustes.es_produccion:
+        seed_admin_inicial(db, roles_por_nombre)
+        logger.info("Entorno de producción: no se crean cuentas ni cargos de demostración.")
+        return
+
     seed_demo_users(db, roles_por_nombre)
     seed_demo_cargos(db)

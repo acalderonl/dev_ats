@@ -47,10 +47,28 @@ from alembic import command  # noqa: E402
 from alembic.config import Config  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
 
 from app.core.database import Base, engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.seed import DEMO_USERS  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _sin_peticiones_contadas():
+    """Cada prueba arranca con el contador de peticiones a cero.
+
+    El límite del portal público vive en memoria del proceso, así que se arrastra entre
+    casos: sin esto, las pruebas del pipeline —que postulan varias veces desde la misma
+    "IP"— agotaban la cuota y las últimas recibían un 429 en vez de crear nada.
+
+    Es el mismo tipo de fuga que `configuracion`: estado global que no se limpia solo.
+    """
+    from app.core.limites import reiniciar
+
+    reiniciar()
+    yield
+    reiniciar()
 
 
 @pytest.fixture(autouse=True)
@@ -202,3 +220,39 @@ def crear_vacante(client: TestClient, reclutador_headers: dict[str, str]):
         return respuesta.json()
 
     return _crear
+
+
+@pytest.fixture()
+def db_limpia():
+    """Una base sin usuarios ni roles, para probar el seed como en una instalación nueva.
+
+    Todo ocurre dentro de una transacción que **se deshace al terminar**. La suite
+    comparte una sola base: si estos borrados se confirmaran, el resto de las pruebas
+    se quedaría sin los usuarios de demo con los que inicia sesión.
+
+    `join_transaction_mode="create_savepoint"` es lo que lo hace posible: el seed llama
+    a `commit()` por dentro, y sin esto confirmaría la transacción externa junto con
+    los borrados.
+    """
+    conexion = engine.connect()
+    transaccion = conexion.begin()
+    sesion = Session(bind=conexion, join_transaction_mode="create_savepoint")
+    try:
+        # En orden de dependencia: lo que apunta a usuarios, antes que usuarios.
+        for tabla in (
+            "evaluaciones",
+            "postulaciones",
+            "vacantes",
+            "tokens_linkedin",
+            "usuario_permisos",
+            "rol_permisos",
+            "usuarios",
+            "roles",
+        ):
+            sesion.execute(text(f"DELETE FROM {tabla}"))
+        sesion.flush()
+        yield sesion
+    finally:
+        sesion.close()
+        transaccion.rollback()
+        conexion.close()

@@ -29,6 +29,8 @@ SECRETOS_QUEMADOS = {
 
 LARGO_MINIMO_DE_SECRETO = 32
 
+ENTORNOS = ("desarrollo", "produccion")
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -38,6 +40,20 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 12
 
+    # 'desarrollo' o 'produccion'. Por defecto el más restrictivo NO es produccion sino
+    # desarrollo, a propósito: un despliegue que olvide ponerlo se nota enseguida
+    # —aparecen los datos de demo— en vez de quedarse en silencio sin administrador.
+    # Lo que nunca pasa con `desarrollo` es que se creen cuentas conocidas sin avisar:
+    # el seed lo registra en el log en los dos casos.
+    entorno: str = "desarrollo"
+
+    # Primer administrador en un despliegue limpio. Solo se usa si NO hay ningún
+    # usuario todavía; después, los usuarios se administran desde la aplicación.
+    admin_inicial_email: str | None = None
+    admin_inicial_password: str | None = None
+
+    # Orígenes permitidos por CORS, separados por comas. En producción no puede
+    # quedarse en localhost: el navegador bloquearía la aplicación entera.
     frontend_origin: str = "http://localhost:3000"
 
     # Dónde se guardan las imágenes de los posts. Es un volumen montado en el
@@ -47,6 +63,29 @@ class Settings(BaseSettings):
 
     default_admin_email: str = "admin@atsdemo.com"
     default_admin_password: str = "Admin123!"
+
+    @field_validator("entorno")
+    @classmethod
+    def entorno_conocido(cls, v: str) -> str:
+        limpio = v.strip().lower()
+        if limpio not in ENTORNOS:
+            raise ValueError(f"ENTORNO debe ser uno de {', '.join(ENTORNOS)}; llegó {v!r}")
+        return limpio
+
+    @property
+    def es_produccion(self) -> bool:
+        return self.entorno == "produccion"
+
+    def origenes_permitidos(self) -> list[str]:
+        """Los orígenes de CORS, de la variable de entorno.
+
+        En desarrollo se añade localhost para no tener que configurarlo; en producción
+        **no**, porque permitiría que una página local hablase con el servidor real.
+        """
+        declarados = [o.strip().rstrip("/") for o in self.frontend_origin.split(",") if o.strip()]
+        if self.es_produccion:
+            return declarados
+        return list(dict.fromkeys([*declarados, "http://localhost:3000", "http://127.0.0.1:3000"]))
 
     @field_validator("secret_key")
     @classmethod

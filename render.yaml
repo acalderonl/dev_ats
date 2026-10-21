@@ -1,0 +1,62 @@
+# Despliegue en Render, declarado en un fichero en vez de a mano en la interfaz.
+#
+# Al conectar el repositorio como "Blueprint", Render crea los servicios con esta
+# configuración y los vuelve a desplegar en cada push a la rama elegida. Que esté
+# versionado importa: si hay que rehacer el entorno, se rehace igual, y un cambio de
+# infraestructura se revisa como cualquier otro cambio.
+#
+# Los secretos NO están aquí. Van con `sync: false`, que hace que Render los pida una
+# vez por su panel y no queden en el repositorio.
+#
+# El frontend hace de proxy hacia el backend (ver `frontend/nginx.conf.template`), así
+# que la API no necesita ser pública ni hay CORS que configurar. Por eso `ats-api` es
+# un servicio privado: solo lo alcanza el frontend por la red interna.
+
+databases:
+  - name: ats-db
+    databaseName: ats
+    user: ats
+    # ⚠️ El plan gratuito caduca a los 90 días y la base se borra. Para un entorno de
+    # prueba es aceptable sabiéndolo; está anotado en docs/DESPLIEGUE.md.
+    plan: free
+
+services:
+  # La API. `pserv` = servicio privado: no tiene URL pública y solo responde dentro de
+  # la red de Render. Lo que ve internet es el frontend.
+  - type: pserv
+    name: ats-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: ENTORNO
+        value: produccion
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ats-db
+          property: connectionString
+      # Render lo genera y nunca pasa por el repositorio. ⚠️ Si se cambia, hay que
+      # volver a introducir las credenciales de Configuración: de él se deriva su cifrado.
+      - key: SECRET_KEY
+        generateValue: true
+      # El primer administrador. Solo se crea si la base no tiene ningún usuario;
+      # después se administran desde la aplicación.
+      - key: ADMIN_INICIAL_EMAIL
+        sync: false
+      - key: ADMIN_INICIAL_PASSWORD
+        sync: false
+
+  # El frontend: sirve la aplicación compilada y reenvía /api al backend.
+  - type: web
+    name: ats-web
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    plan: free
+    envVars:
+      # La dirección interna del backend. Render resuelve el nombre del servicio
+      # dentro de su red privada.
+      - key: API_URL
+        value: http://ats-api:8000

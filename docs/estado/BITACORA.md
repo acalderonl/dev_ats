@@ -8,6 +8,76 @@ una funcionalidad que funcione.
 
 ---
 
+## 2026-10-20 — Sesión 9 · Preparar el despliegue: etapa 2 cerrada
+
+**Fases:** **S.2, S.3 y S.4 cerradas** — con S.1, la etapa 2 entera. **T.6** hecha. **D.1**
+preparada, a falta de que el dueño cree la cuenta.
+
+**El encargo:** un entorno accesible por URL para que otra persona siga el avance. No es
+producción real, va a tener solo datos inventados, y se actualizará constantemente.
+
+**Lo que había, mirado antes de tocar nada**
+- El seed creaba `admin@atsdemo.com` / `Demo1234!` **en cada arranque**. Esa contraseña está
+  en este repositorio público: con una URL en internet, cualquiera entraba como super admin.
+- El frontend corría `npm run dev` —el servidor de Vite— y el backend con `--reload`.
+- `/leer-cv` no tenía límite **y llama a la API de Claude**: en internet es una factura
+  abierta a quien escriba un bucle. Eso no estaba en el mapa de fases.
+
+**S.2 — el seed**
+- `ENTORNO` nuevo. En producción no se crean ni cuentas ni cargos de demo; sí los roles y
+  los catálogos de educación, que no son "ejemplos" sino parte del sistema.
+- El primer administrador sale de `ADMIN_INICIAL_EMAIL`/`PASSWORD`, y **solo si la base no
+  tiene ningún usuario**. Sin esas variables no se crea nadie y se dice en el log: un sistema
+  sin administrador es un problema visible; uno con un administrador adivinable, no.
+- De paso se corrige lo del día 14: el seed ya no comprueba correo por correo, así que
+  **no recrea una cuenta que alguien renombró**.
+
+**S.4 — límite de peticiones**
+- Por IP, leyendo `X-Forwarded-For` (sin eso, detrás de un proxy todas las peticiones
+  parecen venir del mismo sitio). 5 lecturas de CV cada 10 minutos, 10 postulaciones, 60
+  consultas por minuto.
+- En memoria del proceso a propósito, con la contrapartida asumida y escrita: se olvida al
+  reiniciar y no sirve con varias réplicas.
+
+**Imágenes de producción**
+- Backend en dos etapas, sin el compilador en la imagen final y con usuario sin
+  privilegios: de **942 MB a 480**.
+- Frontend compilado con Vite y servido por nginx, **haciendo de proxy** hacia el backend.
+  Así la API no se expone a internet, no hay CORS, y la imagen no necesita saber en qué
+  dominio vivirá: Vite incrusta las variables al compilar, no al arrancar.
+
+**Verificado con un ensayo completo en local** — las dos imágenes de producción contra una
+base vacía, con `ENTORNO=produccion`:
+- En la base solo existe el admin de las variables, y **cero** cargos de demo.
+- `admin@atsdemo.com` / `Demo1234!` devuelve **401**. Es la prueba de que S.2 está cerrada.
+- A través del proxy: la página carga, `/cargos` devuelve 200 (no el 404 de nginx), el
+  login del admin inicial da 200, y el límite corta a la sexta lectura de CV
+  (`400 400 400 400 400 429 429`), lo que confirma que la IP real llega al backend.
+- 152 pruebas en verde (eran 137). Las 15 nuevas cubren el seed en los dos entornos, el
+  CORS, y el límite con su cabecera `Retry-After`.
+
+**Dos cosas que aparecieron al construir, y que nadie había visto**
+- **No existía `package-lock.json`.** Cada build resolvía versiones distintas: dos
+  despliegues del mismo commit podían no ser iguales. Generado y versionado.
+- **El build de producción nunca se había ejecutado** (fase T.6). Fallaba por `@types/node`
+  ausente: `vite.config.ts` importa `node:url` y `npm run dev` no pasa por `tsc`.
+
+**Un error propio**
+- Escribí el `render.yaml` dando por hechas dos cosas de Render que no había comprobado: que
+  las variables llegan como argumentos de construcción, y que `property: host` trae el
+  esquema. En vez de adivinar, cambié el diseño a que nginx haga de proxy, que elimina las
+  dos preguntas y además quita el CORS. Ese camino sí lo pude ensayar entero en local.
+
+**Pendiente / avisos**
+- 🔴 **Sin copias de seguridad y sin poder borrar a un candidato** (S.5). Acordado, porque
+  solo habrá datos inventados. El día que entren personas reales, eso cambia.
+- El plan gratuito de Render **apaga los servicios** tras un rato sin uso y **su base
+  caduca a los 90 días**. Está escrito en la guía; si molesta, Railway no se apaga.
+- Si Render regenera `SECRET_KEY`, hay que volver a introducir las credenciales de
+  Configuración: de ella se deriva su cifrado.
+
+---
+
 ## 2026-10-16 — Sesión 8 · Usuarios, roles y permisos; pestañas en Cargos
 
 **Fases:** M7 (usuarios y roles) muy ampliado. **S.2 sigue sin empezar**, y hoy dejó de ser

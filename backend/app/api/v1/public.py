@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.limites import limitar
 from app.models.pregunta_filtro import PreguntaFiltro
 from app.models.postulacion import Postulacion
 from app.models.postulante import Postulante
@@ -44,7 +45,11 @@ def _get_vacante_activa_or_410(db: Session, slug: str) -> Vacante:
     return vacante
 
 
-@router.get("/vacantes/{slug}", response_model=VacantePublicaOut)
+@router.get(
+    "/vacantes/{slug}",
+    response_model=VacantePublicaOut,
+    dependencies=[Depends(limitar("consulta"))],
+)
 def obtener_vacante_publica(slug: str, db: Session = Depends(get_db)) -> VacantePublicaOut:
     vacante = _get_vacante_activa_or_410(db, slug)
     preguntas = db.scalars(select(PreguntaFiltro).where(PreguntaFiltro.cargo_id == vacante.cargo_id)).all()
@@ -64,13 +69,21 @@ def obtener_vacante_publica(slug: str, db: Session = Depends(get_db)) -> Vacante
     )
 
 
-@router.post("/parse-cv", response_model=CvParseadoOut)
+@router.post(
+    "/parse-cv",
+    response_model=CvParseadoOut,
+    dependencies=[Depends(limitar("leer_cv"))],
+)
 async def parsear_cv(file: UploadFile = File(...)) -> CvParseadoOut:
     """Extracción básica. Se mantiene para no romper a quien ya la use."""
     return await parse_cv_upload(file)
 
 
-@router.post("/leer-cv", response_model=CvExtraidoOut)
+@router.post(
+    "/leer-cv",
+    response_model=CvExtraidoOut,
+    dependencies=[Depends(limitar("leer_cv"))],
+)
 async def leer_cv(file: UploadFile = File(...), db: Session = Depends(get_db)) -> CvExtraidoOut:
     """Lee el CV y devuelve los campos del formulario de postulación.
 
@@ -133,7 +146,12 @@ def _crear_postulante(payload: PostularRequest) -> Postulante:
     return postulante
 
 
-@router.post("/vacantes/{slug}/postular", response_model=PostulanteOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/vacantes/{slug}/postular",
+    response_model=PostulanteOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(limitar("postular"))],
+)
 def postular(slug: str, payload: PostularRequest, db: Session = Depends(get_db)) -> PostulanteOut:
     vacante = _get_vacante_activa_or_410(db, slug)
 

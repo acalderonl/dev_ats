@@ -23,6 +23,12 @@ services:
       dockerfile: Dockerfile
     container_name: ats_python_backend
     restart: unless-stopped
+    # La imagen corre como usuario sin privilegios, que es lo correcto en un servidor.
+    # Aquí se vuelve a root porque el código llega por un bind mount desde Windows y la
+    # carpeta de medios es un volumen creado antes: con otro usuario no podría escribir.
+    user: root
+    # Desarrollo: `--reload` vigila el disco y reinicia al guardar. La imagen trae el
+    # comando sin recarga, que es el que se usa al desplegar.
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     ports:
       - "8000:8000"
@@ -42,11 +48,16 @@ services:
         condition: service_healthy
 
   frontend:
+    # La imagen de producción compila con Vite y sirve con nginx. En desarrollo se usa
+    # solo la etapa de compilación, que es la que tiene Node, y se arranca el servidor
+    # de Vite con recarga en caliente sobre el código montado.
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: compilacion
     container_name: ats_web_frontend
     restart: unless-stopped
+    command: npm run dev
     ports:
       - "3000:3000"
     environment:

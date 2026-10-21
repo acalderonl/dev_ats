@@ -26,9 +26,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="ANAI - Seleccion de personal", version="1.0.0", lifespan=lifespan)
 
+# En producción los orígenes salen solo de FRONTEND_ORIGIN; en desarrollo se añade
+# localhost para no tener que configurarlo. Ver `Settings.origenes_permitidos`.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_origin, "http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=settings.origenes_permitidos(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

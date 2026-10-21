@@ -1,6 +1,6 @@
 # Arranque de la próxima sesión
 
-> Escrito al cerrar el **2026-10-16** (sesión 8). Si al leerlo ya no cuadra con el código, manda el
+> Escrito al cerrar el **2026-10-20** (sesión 9). Si al leerlo ya no cuadra con el código, manda el
 > código: se corrige este archivo antes de seguir.
 
 ## 0. Antes de nada: hace falta un `.env`
@@ -34,7 +34,7 @@ docker compose up -d
 docker compose exec backend pytest -q
 ```
 
-Deben salir **137 en verde**. Si no, **eso es la sesión**: no se empieza nada nuevo sobre terreno
+Deben salir **152 en verde**. Si no, **eso es la sesión**: no se empieza nada nuevo sobre terreno
 que ya se movió.
 
 Luego leer `ESTADO.md` y, de `FASES.md`, la etapa 2.

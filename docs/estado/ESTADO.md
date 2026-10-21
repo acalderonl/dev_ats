@@ -1,6 +1,6 @@
 # Estado del proyecto — dónde estamos AHORA
 
-> Última actualización: **2026-10-16** · Sesiones: **8** (en 7 días) · Pruebas: **137 en verde**
+> Última actualización: **2026-10-20** · Sesiones: **9** (en 8 días) · Pruebas: **152 en verde**
 > Este archivo se lee al empezar cada sesión. Si algo aquí ya no es cierto, se corrige antes de seguir.
 
 ## En una línea
@@ -14,11 +14,11 @@ publicación con estados, alcance y post, y la aplicación lleva la **marca de l
 
 | | |
 |---|---|
-| **Fase** | `S.2 — El seed no debe correr en producción` |
-| **Etapa** | 2 de 6 — Bloqueantes de seguridad |
-| **Por qué esta** | `main.py:18` corre el seed en cada arranque sin mirar el entorno. **Ya pasó en desarrollo**: el dueño renombró `admin@atsdemo.com` el 14-oct y el seed volvió a crearlo en el siguiente arranque, con `Demo1234!`, que está publicada en este repo. Hoy hay 5 usuarios, dos de ellos cuentas de demo recreadas. Dejó de ser un riesgo teórico. |
-| **Terminada cuando** | El seed solo corre si el entorno lo pide explícitamente, y nunca crea usuarios de demo fuera de desarrollo. |
-| **Antes hay que** | Levantar el entorno: `docker compose up -d`. |
+| **Fase** | `D.1 — Desplegar el entorno de prueba` |
+| **Etapa** | 5 de 6 — Salir a producción |
+| **Por qué esta** | La etapa 2 está cerrada: S.1, S.2, S.3 y S.4 hechas. Solo queda S.5 (borrar datos de un candidato), que no aplica mientras el entorno no tenga personas reales. Todo lo técnico del despliegue está escrito y ensayado. |
+| **Terminada cuando** | La aplicación responde en una URL pública y cada push la actualiza. |
+| **Te toca a ti** | Crear la cuenta en Render y conectar el repositorio. Los pasos están en `docs/DESPLIEGUE.md`; son unos 10 minutos. |
 
 > ⚠️ **Si el entorno no levanta**: desde el día 6 hace falta un `.env` con `SECRET_KEY`. Copia
 > `.env.example` a `.env` y genera una con
@@ -51,7 +51,7 @@ Leyenda: 🟢 base funcionando · 🟡 base funcionando con huecos conocidos · 
 | **M5** Evaluaciones | 🟡 | ❌ nada | M5.1 scorecard consolidado | 4 |
 | **M6** Dashboard | 🟡 | Carga y dibuja (a mano) | M6.1 volumen en el tiempo | 6 |
 | **M7** Usuarios y roles | 🟢 | CRUD de usuarios y roles, y permisos por módulo con ajuste por usuario, **con pruebas**. Comprobado en la base que una excepción guarda una fila, no una copia del rol | M7.2 el menú por permisos, no por rol | 4 |
-| **S** Seguridad | 🟡 | S.1 cerrada y verificada con control positivo y negativo. Quedan 3 fallos confirmados | **S.2 el seed en producción** ⬅ activa | 2 |
+| **S** Seguridad | 🟢 | **Los 4 fallos confirmados, cerrados.** S.2 verificado levantando la imagen de producción contra una base limpia: la cuenta publicada devuelve 401 | S.5 borrar los datos de un candidato | 6 |
 | **T** Transversal | 🟢 | Suite corriendo, aislada y sin fuga | T.2 validar por mutación | 1 |
 
 ### Qué tiene hoy el módulo de Cargos (M1)
@@ -108,10 +108,24 @@ La aplicación es de la **Academia Naval Almirante Illingworth**: escudo, nombre
 del sitio de la institución (`#0064b4` institucional, `#003462` franjas, `#20395f` escudo). El
 azul institucional vive en `brand-600` de Tailwind, que es lo que ya usaba toda la interfaz.
 
+### Desplegar
+
+Todo lo técnico está hecho y ensayado en local: imágenes de producción, `render.yaml`,
+el seed que no crea cuentas de demo, y límite de peticiones en el portal público. La guía
+paso a paso está en **`docs/DESPLIEGUE.md`**.
+
+El frontend hace de **proxy** hacia el backend, así que la API no se expone a internet y
+no hay CORS que configurar. Cada push a la rama desplegada actualiza el entorno solo, y
+las migraciones se aplican al arrancar.
+
+⚠️ Es un **entorno de prueba**, no producción real: sin copias de seguridad y sin forma de
+borrar a un candidato que lo pida. Mientras solo tenga datos inventados, está bien; el día
+que entren personas reales, eso cambia.
+
 ## Lo más urgente, en una frase
 
-El seed corre en cada arranque sin mirar el entorno: en un servidor real **crearía un super admin con
-una contraseña que está publicada en este repositorio** (fase S.2).
+Ya no hay nada urgente en el código: las cuatro puertas de seguridad están cerradas. Lo que queda
+es **tuyo**: crear la cuenta en Render y conectar el repositorio (`docs/DESPLIEGUE.md`).
 
 ## Lo que necesita tu intervención
 
