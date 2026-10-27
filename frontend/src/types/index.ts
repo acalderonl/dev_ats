@@ -116,7 +116,9 @@ export interface PreguntaFiltro {
 }
 
 export type EstadoVacante = "borrador" | "abierta" | "cerrada"
-export type EstadoDelPost = "borrador" | "programado" | "publicado" | "error"
+/** "compartido" no es "publicado": al abrir el compositor entregamos el contenido,
+ *  pero quien pulsa Publicar es la persona y el sistema no puede saberlo. */
+export type EstadoDelPost = "borrador" | "programado" | "compartido" | "publicado" | "error"
 export type VisibilidadVacante = "publica" | "interna" | "mixta"
 
 export interface CampoPersonalizado {
@@ -371,4 +373,12 @@ export interface GrupoPorClasificacion {
   clasificacion_id: number | null
   clasificacion: string
   competencias: CompetenciaSugerida[]
+}
+
+/** Lo que hace falta para llevar una vacante a LinkedIn a mano. */
+export interface ParaCompartirEnLinkedIn {
+  texto: string
+  enlace_de_la_vacante: string
+  url_del_compositor: string
+  aviso: string
 }

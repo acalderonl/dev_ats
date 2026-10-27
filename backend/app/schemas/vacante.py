@@ -202,3 +202,13 @@ class LinkedInPublishOut(BaseModel):
 
 class WhatsAppShareOut(BaseModel):
     whatsapp_url: str
+
+
+class ParaCompartirEnLinkedIn(BaseModel):
+    """Lo que la pantalla necesita para llevar la vacante a LinkedIn a mano."""
+
+    texto: str
+    # La URL con las etiquetas Open Graph, que es la que entiende el rastreador.
+    enlace_de_la_vacante: str
+    url_del_compositor: str
+    aviso: str

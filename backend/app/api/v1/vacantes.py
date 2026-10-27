@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from urllib.parse import quote
 from uuid import UUID
 
 import httpx
@@ -19,6 +20,7 @@ from app.schemas.vacante import (
     CambioDeEstadoDelPost,
     EnvioInternoOut,
     ImagenSubidaOut,
+    ParaCompartirEnLinkedIn,
     ResultadoDePublicacion,
     VacanteCreate,
     VacanteOut,
@@ -214,6 +216,61 @@ def vista_previa_del_post(
         destinatarios_internos=vacante.destinatarios_internos or [],
         programado_para=vacante.post_programado_para,
         caracteres=len(texto),
+    )
+
+
+@router.post("/{vacante_id}/compartir-linkedin", response_model=ParaCompartirEnLinkedIn)
+def preparar_para_compartir(
+    vacante_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(require_roles("super_admin", "reclutador")),
+) -> ParaCompartirEnLinkedIn:
+    """Prepara el contenido y el enlace para publicar a mano en LinkedIn.
+
+    Es la vía sin OAuth: el sistema arma el texto y abre el compositor de LinkedIn con
+    la tarjeta de la vacante; quien publica es la persona, desde su propia cuenta.
+
+    Por qué existiendo la vía con API: no necesita app aprobada, ni credenciales, ni
+    tokens que caducan a los 60 días, y sirve con cualquier cuenta. A cambio, el
+    sistema **no puede saber si se llegó a pulsar Publicar**, y por eso el estado que
+    deja es `compartido` y no `publicado`.
+    """
+    vacante = _vacante_o_404(db, vacante_id)
+    if vacante.visibilidad == "interna":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Una vacante interna no se comparte en LinkedIn. Cámbiala a pública o mixta.",
+        )
+    if vacante.estado != "abierta":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Solo se comparte una vacante abierta: LinkedIn no podría mostrar un borrador.",
+        )
+
+    origen = _origen_del_frontend(request)
+    # La URL que se le da a LinkedIn es la de compartir, no la del formulario: es la
+    # que sirve las etiquetas Open Graph desde el servidor. Dándole la del formulario,
+    # el rastreador recibiría la SPA vacía y la tarjeta saldría sin nada.
+    enlace_para_linkedin = f"{origen}/compartir/{vacante.slug}"
+    texto = _texto_del_post(vacante, f"{origen}/postular/{vacante.slug}")
+
+    vacante.post_estado = "compartido"
+    vacante.post_publicado_en = datetime.now(timezone.utc)
+    vacante.post_error = None
+    db.commit()
+
+    return ParaCompartirEnLinkedIn(
+        texto=texto,
+        enlace_de_la_vacante=enlace_para_linkedin,
+        url_del_compositor=(
+            f"https://www.linkedin.com/sharing/share-offsite/?url={quote(enlace_para_linkedin, safe='')}"
+        ),
+        aviso=(
+            "LinkedIn arma la tarjeta a partir del enlace y no admite texto preparado, "
+            "así que el texto se copió a tu portapapeles: pégalo en el compositor antes "
+            "de publicar."
+        ),
     )
 
 

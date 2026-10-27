@@ -5,6 +5,7 @@ import type {
   EstadoLinkedIn,
   EstadoVacante,
   Jornada,
+  ParaCompartirEnLinkedIn,
   Vacante,
   VistaPreviaDelPost,
 } from '@/types'
@@ -39,6 +40,9 @@ export const vacantesService = {
     apiPatch<Vacante>(`/vacantes/${id}/post-estado`, { post_estado }),
   subirImagen: (file: File) => apiUpload<{ url: string }>('/vacantes/imagen', file),
   vistaPrevia: (id: string) => apiGet<VistaPreviaDelPost>(`/vacantes/${id}/vista-previa`),
+  /** Vía sin OAuth: prepara el texto y el enlace para publicar a mano. */
+  compartirEnLinkedIn: (id: string) =>
+    apiPost<ParaCompartirEnLinkedIn>(`/vacantes/${id}/compartir-linkedin`),
   publicarEnLinkedIn: (id: string) =>
     apiPost<{ post_estado: EstadoDelPost; linkedin_post_id: string | null; simulado: boolean; mensaje: string }>(
       `/vacantes/${id}/publicar-linkedin`,

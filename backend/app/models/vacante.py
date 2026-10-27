@@ -27,7 +27,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
 ESTADOS = ("borrador", "abierta", "cerrada")
-ESTADOS_DEL_POST = ("borrador", "programado", "publicado", "error")
+# "compartido" NO es "publicado": al abrir el compositor de LinkedIn entregamos el
+# contenido, pero quien pulsa Publicar es la persona y el sistema no puede saber si lo
+# hizo. Decir "publicado" sin saberlo seria mentir en la pantalla.
+ESTADOS_DEL_POST = ("borrador", "programado", "compartido", "publicado", "error")
 VISIBILIDADES = ("publica", "interna", "mixta")
 
 

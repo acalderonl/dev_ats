@@ -19,6 +19,18 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    # La página con las etiquetas Open Graph que lee LinkedIn. La genera el backend
+    # porque el rastreador no ejecuta JavaScript: pedirle esta ruta a la SPA le
+    # devolvería un `<div id="root">` vacío y la tarjeta saldría sin nada.
+    location /compartir/ {
+        proxy_pass ${API_URL};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
     # Todo lo que empiece por /api va al backend tal cual.
     location /api/ {
         proxy_pass ${API_URL};

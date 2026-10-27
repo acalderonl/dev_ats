@@ -65,7 +65,7 @@ la imagen, salvo que cambien las dependencias (`requirements.txt` / `package.jso
 backend/app/
 ├── api/v1/        # Routers REST: auth, users, cargos, catalogos, competencias, vacantes,
 │                  # public, postulaciones, evaluaciones (anidado bajo /postulaciones),
-│                  # contactos, dashboard, configuracion, media
+│                  # contactos, dashboard, configuracion, media, compartir (este último fuera de /api/v1)
 ├── core/          # config.py (Settings + clave de cifrado), database.py, security.py (JWT/RBAC), utils.py (slug)
 ├── models/        # Modelos SQLAlchemy 2.0, uno por tabla (roles, usuarios, cargos, ...)
 ├── schemas/       # Pydantic: *Create / *Out por recurso
@@ -144,13 +144,31 @@ los recibe; si vacío significara "borrar", guardar cualquier otra cosa mataría
 
 ### LinkedIn / correo / WhatsApp
 
-- `linkedin_service.py`: publica en **el muro del reclutador** que conecta su cuenta, que es la
-  única vía sin aprobación de partner (productos *Sign In with LinkedIn (OIDC)* + *Share on
-  LinkedIn*, scope `w_member_social`). La página de empresa (Community Management API) y el tablón
-  de empleos (Talent Solutions) **exigen ser partner aprobado**. Sin credenciales queda en **modo
-  simulado** y lo declara, en vez de aparentar que algo salió a internet.
+Hay **dos caminos para llevar una vacante a LinkedIn**, y conviene no confundirlos:
+
+**1. Sin credenciales — el botón «LinkedIn» de la tarjeta.** El sistema arma el texto, lo copia
+al portapapeles y abre el compositor de LinkedIn (`sharing/share-offsite`) con el enlace de la
+vacante. Quien pulsa Publicar es la persona. Por eso el post queda en estado **`compartido`, que
+no es `publicado`**: desde aquí no se puede saber si llegó a publicarse, y afirmarlo sería mentir.
+
+  El enlace que recibe LinkedIn **no** es el del formulario sino `/compartir/{slug}`
+  (`api/v1/compartir.py`, montado fuera de `/api/v1`), una página que **genera el servidor** con
+  las etiquetas Open Graph rellenas. Hace falta porque la aplicación es una SPA y el rastreador de
+  LinkedIn no ejecuta JavaScript: con el enlace del formulario, la tarjeta saldría vacía. Quien
+  abra esa página acaba en el formulario por la redirección. Solo se anuncia `og:image` si la
+  vacante tiene imagen propia subida —el escudo es SVG y LinkedIn no los dibuja—.
+  En producción la reenvía nginx; en desarrollo, el proxy de `vite.config.ts`.
+  ⚠️ Para que la tarjeta se vea, esa URL tiene que ser **alcanzable desde internet**.
+
+**2. Con credenciales — `linkedin_service.py`.** Publica en **el muro del reclutador** que conecta
+su cuenta, que es la única vía automática sin aprobación de partner (productos *Sign In with
+LinkedIn (OIDC)* + *Share on LinkedIn*, scope `w_member_social`). La página de empresa (Community
+Management API) y el tablón de empleos (Talent Solutions) **exigen ser partner aprobado**. Sin
+credenciales queda en **modo simulado** y lo declara, en vez de aparentar que algo salió a
+internet.
   ⚠️ El token de autoservicio dura ~60 días y **no hay refresh token** fuera del programa de
   partners: hay que volver a conectar.
+
 - `correo_service.py`: dos conexiones a elegir, **Gmail/Workspace** (servidor y puerto fijos,
   contraseña de aplicación) o **cualquier servidor SMTP** (servidor, puerto, cifrado, usuario).
   Hay un endpoint que prueba la conexión sin enviar nada.

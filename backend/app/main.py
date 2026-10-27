@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1 import api_router
+from app.api.v1 import compartir
 from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.seed import run_seed
@@ -37,6 +38,10 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix="/api/v1")
+
+# Fuera de /api/v1 a proposito: es una URL que se pega en LinkedIn o se manda por
+# WhatsApp, y "/compartir/analista-de-reclutamiento" se lee mejor que una ruta de API.
+app.include_router(compartir.router, prefix="/compartir", tags=["Compartir"])
 
 
 @app.get("/health")

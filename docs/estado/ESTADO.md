@@ -1,14 +1,15 @@
 # Estado del proyecto — dónde estamos AHORA
 
-> Última actualización: **2026-10-20** · Sesiones: **9** (en 8 días) · Pruebas: **152 en verde**
+> Última actualización: **2026-10-26** · Sesiones: **10** (en 9 días) · Pruebas: **164 en verde**
 > Este archivo se lee al empezar cada sesión. Si algo aquí ya no es cierto, se corrige antes de seguir.
 
 ## En una línea
 
-**S.1 está cerrada**: `SECRET_KEY` ya no tiene valor por defecto y la aplicación no arranca sin
-ella. Los módulos de **Cargos (M1)** y **Vacantes** están rehechos: la vacante es ahora una
-publicación con estados, alcance y post, y la aplicación lleva la **marca de la ANAI**. Quedan
-**4 puertas de seguridad** de las 5.
+**La etapa 2 está cerrada**: las 4 puertas de seguridad confirmadas, cerradas y verificadas
+levantando la imagen de producción. Los módulos de **Cargos (M1)**, **Vacantes** y **Usuarios y
+roles (M7)** están rehechos, y la aplicación lleva la **marca de la ANAI**. Una vacante ya se
+puede llevar a LinkedIn **sin aplicación aprobada**. Falta lo mismo que la semana pasada: que el
+dueño cree la máquina en Google Cloud.
 
 ## Fase activa
 
@@ -18,7 +19,7 @@ publicación con estados, alcance y post, y la aplicación lleva la **marca de l
 | **Etapa** | 5 de 6 — Salir a producción |
 | **Por qué esta** | La etapa 2 está cerrada: S.1, S.2, S.3 y S.4 hechas. Solo queda S.5 (borrar datos de un candidato), que no aplica mientras el entorno no tenga personas reales. Todo lo técnico del despliegue está escrito y ensayado. |
 | **Terminada cuando** | La aplicación responde en una URL pública y cada push la actualiza. |
-| **Te toca a ti** | Crear la cuenta en Render y conectar el repositorio. Los pasos están en `docs/DESPLIEGUE.md`; son unos 10 minutos. |
+| **Te toca a ti** | Crear la máquina en **Google Cloud** y apuntarle un dominio. El paso a paso está en `docs/DESPLIEGUE.md`. (Render quedó como alternativa al final de esa guía.) |
 
 > ⚠️ **Si el entorno no levanta**: desde el día 6 hace falta un `.env` con `SECRET_KEY`. Copia
 > `.env.example` a `.env` y genera una con
@@ -44,7 +45,7 @@ Leyenda: 🟢 base funcionando · 🟡 base funcionando con huecos conocidos · 
 
 | Módulo | Estado | Verificado | Siguiente fase | Etapa |
 |---|---|---|---|---|
-| **M1** Cargos, vacantes e integraciones | 🟢 | Cargos y vacantes: crear, editar y estados, **con pruebas**. Imagen del post y cifrado de secretos comprobados en la base | M1.6 publicar a la hora programada | 4 |
+| **M1** Cargos, vacantes e integraciones | 🟢 | Cargos y vacantes: crear, editar y estados, **con pruebas**. Imagen del post y cifrado de secretos comprobados en la base. Compartir en LinkedIn **sin OAuth**: medido que el rastreador no ve la SPA, comprobado que `/compartir` sí le da las etiquetas y que la vacante queda como `compartido` | M1.6 publicar a la hora programada | 4 |
 | **M2** Portal público y parsing de CV | 🟡 | ❌ nada | M2.1 guardar el CV de verdad | 3 |
 | **M3** Pipeline de reclutamiento | 🟡 | Reglas de transición, **con pruebas** | M3.3 puntuación de coincidencia | 4 |
 | **M4** Directorio de contactos | 🟡 | Búsqueda, **con pruebas** | M4.1 exportar de verdad | 4 |
@@ -130,7 +131,7 @@ es **tuyo**: crear la cuenta en Render y conectar el repositorio (`docs/DESPLIEG
 ## Lo que necesita tu intervención
 
 | Qué | Por qué está parado |
-|---|---|
+| **App de LinkedIn** | Solo para el camino automático (publicar desde el sistema). Hay que crearla en developer.linkedin.com y pegar Client ID, Secret y Redirect URI en Configuración; hasta entonces ese botón queda en **modo simulado** y lo dice. **El botón «LinkedIn» de la tarjeta no la necesita**: copia el texto y abre el compositor. |
 | **App de LinkedIn** | Hay que crearla en developer.linkedin.com y pegar Client ID, Secret y Redirect URI en Configuración. Hasta entonces, publicar queda en **modo simulado** y lo dice. |
 | **Contraseña de aplicación de Gmail** | Con verificación en dos pasos activada, generarla en la cuenta de Google. Sin eso no hay envío interno. |
 | **Publicar a la hora programada** | La fecha se guarda, pero **nada la ejecuta todavía**: hoy hay que pulsar el botón. Necesita un proceso aparte (fase M1.6). |

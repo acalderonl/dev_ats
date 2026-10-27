@@ -8,6 +8,79 @@ una funcionalidad que funcione.
 
 ---
 
+## 2026-10-26 — Sesión 10 · Publicar en LinkedIn sin OAuth
+
+**Fase:** M1 — integraciones. No cierra ninguna fase del mapa: es el camino alternativo al
+que ya existía (OAuth), pedido por el dueño porque no quiere depender de una aplicación
+aprobada por LinkedIn.
+
+**El encargo, literal:** «al conectarlo pueda ser capaz de disparar abrir el enlace del
+linkedin conectado para presionar publicar desde la plataforma solo trasladamos la
+información de mi sistema a linkedin».
+
+**Lo primero fue medir, no suponer.** Pedí el portal con el agente del rastreador:
+
+```
+curl -A "LinkedInBot/1.0" http://localhost:3000/postular/<slug>
+```
+
+Devuelve `<title>ANAI | Selección de personal</title>`, un `<div id="root"></div>` vacío y
+**cero** etiquetas Open Graph. Era de esperar —la aplicación es una SPA y el rastreador de
+LinkedIn no ejecuta JavaScript—, pero sin esa comprobación habría sido una corazonada. Con
+ese enlace, LinkedIn habría dibujado una tarjeta sin puesto, sin descripción y sin imagen.
+
+**Lo construido**
+- `GET /compartir/{slug}`: una página que **genera el servidor**, con las etiquetas Open
+  Graph rellenas desde la base. Va montada fuera de `/api/v1` porque la URL se reparte a
+  personas. Quien la abra no se queda ahí: `meta refresh` + `location.replace` lo llevan al
+  formulario de verdad, así que no es una página paralela que haya que mantener.
+- `POST /vacantes/{id}/compartir-linkedin`: arma el texto, devuelve el enlace a compartir y
+  la URL del compositor (`share-offsite`).
+- En la tarjeta de la vacante, el botón copia el texto al portapapeles y abre el compositor.
+  La pestaña se abre **antes** del `await`: abrirla después la mata el bloqueador de
+  ventanas emergentes.
+
+**Tres decisiones que no son obvias**
+- **`compartido` no es `publicado`.** Es el estado nuevo del post. El sistema entrega el
+  contenido, pero quien pulsa Publicar es la persona y eso no se puede comprobar desde
+  aquí. Marcarlo como publicado sería afirmar algo que no se sabe; la pantalla lo dice.
+- **Sin imagen propia no se anuncia ninguna.** El escudo de la ANAI es un SVG y LinkedIn no
+  los dibuja en las tarjetas: saldría un hueco. Sin `og:image` muestra una tarjeta de solo
+  texto, que se ve bien.
+- **No se montó SSR.** Cambiar la arquitectura entera del frontend por cuatro etiquetas no
+  se sostiene cuando una ruta del backend lo resuelve.
+
+**Verificado de punta a punta, no solo con pruebas**
+- 164 pruebas en verde (eran 152). Las 12 nuevas cubren las etiquetas, la redirección, el
+  escapado de comillas en el asunto, y que un borrador, una vacante interna y una vencida
+  devuelvan 404 —también al rastreador: interna significa interna.
+- En el navegador, con la aplicación levantada: el botón copia el texto, el navegador
+  registra el intento de abrir `www.linkedin.com`, y aparece el aviso «Termina de publicar
+  en LinkedIn» con el texto y el recordatorio de que queda como enviado, no publicado.
+- En PostgreSQL, `post_estado` pasó a `compartido`.
+- `curl` con el agente de LinkedIn contra `/compartir/<slug>` devuelve el título, la
+  descripción con contrato, sueldo y horario, y el enlace canónico al formulario.
+- `black`, `flake8` y `tsc --noEmit` limpios.
+
+**Un hueco que se vio al verificar, y se tapó**
+En producción nginx reenvía `/compartir/` al backend, pero **en desarrollo Vite no**: el
+enlace que se reparte habría devuelto el `index.html` vacío de la SPA justo donde se quiere
+probar el flujo. Añadido el proxy en `vite.config.ts` (`VITE_PROXY_TARGET`) y comprobado que
+el puerto 3000 ya devuelve las etiquetas.
+
+**Pendiente / avisos**
+- La guía de despliegue (`docs/DESPLIEGUE.md`) es la de **Google Cloud** desde el 20 de
+  octubre; la entrada de la sesión 9 todavía habla de Render, que quedó como alternativa al
+  final del documento. El dueño aún no ha creado la máquina.
+- El camino con OAuth sigue existiendo y sin estrenar: necesita la aplicación de LinkedIn
+  del dueño. Este camino no la necesita.
+- Para que LinkedIn pueda leer la tarjeta, `/compartir/<slug>` tiene que ser **alcanzable
+  desde internet**. Mientras todo esté en `localhost`, la tarjeta saldrá vacía por mucho que
+  la página sea correcta.
+
+---
+
+
 ## 2026-10-20 — Sesión 9 · Preparar el despliegue: etapa 2 cerrada
 
 **Fases:** **S.2, S.3 y S.4 cerradas** — con S.1, la etapa 2 entera. **T.6** hecha. **D.1**

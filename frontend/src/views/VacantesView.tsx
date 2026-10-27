@@ -32,6 +32,7 @@ import type {
   CampoPersonalizado,
   EstadoVacante,
   Jornada,
+  ParaCompartirEnLinkedIn,
   Vacante,
   VisibilidadVacante,
   VistaPreviaDelPost,
@@ -131,6 +132,9 @@ const TONO_DE_ESTADO: Record<EstadoVacante, 'slate' | 'green' | 'red'> = {
 const ETIQUETA_DEL_POST: Record<string, string> = {
   borrador: 'Post en borrador',
   programado: 'Post programado',
+  // Deliberadamente distinto de "publicado": al abrir el compositor entregamos el
+  // contenido, pero quien pulsa Publicar es la persona y no podemos comprobarlo.
+  compartido: 'Enviado a LinkedIn',
   publicado: 'Post publicado',
   error: 'Post con error',
 }
@@ -138,6 +142,7 @@ const ETIQUETA_DEL_POST: Record<string, string> = {
 const PUNTO_DEL_POST: Record<string, string> = {
   borrador: 'bg-slate-300',
   programado: 'bg-amber-400',
+  compartido: 'bg-sky-500',
   publicado: 'bg-emerald-500',
   error: 'bg-red-500',
 }
@@ -181,6 +186,8 @@ export function VacantesView() {
   const [gestionandoContratos, setGestionandoContratos] = useState(false)
   const [jornadas, setJornadas] = useState<Jornada[]>([])
   const [previa, setPrevia] = useState<VistaPreviaDelPost | null>(null)
+  /** Lo que se mandó a LinkedIn, para poder reabrir el texto si el pegado falló. */
+  const [compartido, setCompartido] = useState<ParaCompartirEnLinkedIn | null>(null)
   const [publicandoId, setPublicandoId] = useState<string | null>(null)
 
   const tiposContrato = catalogos['tipos-contrato'] ?? []
@@ -301,6 +308,42 @@ export function VacantesView() {
       if (simulado) toast.warning(mensaje)
       else toast.success(mensaje)
     } catch (err) {
+      toast.error(errorMessage(err))
+    } finally {
+      setPublicandoId(null)
+    }
+  }
+
+  /**
+   * Lleva la vacante a LinkedIn sin API: copia el texto y abre el compositor.
+   *
+   * La ventana se abre **antes** de esperar al servidor. Los navegadores solo dejan
+   * abrir pestañas como consecuencia directa de un clic; si se abriera después del
+   * `await`, el bloqueador de ventanas emergentes la pararía.
+   */
+  async function compartirEnLinkedIn(vacante: Vacante) {
+    const pestana = window.open('', '_blank')
+    setPublicandoId(vacante.id)
+    try {
+      const datos = await vacantesService.compartirEnLinkedIn(vacante.id)
+      // El portapapeles también quiere el gesto del usuario cerca; va antes de nada
+      // más por si falla, para poder avisar.
+      let copiado = true
+      try {
+        await navigator.clipboard.writeText(datos.texto)
+      } catch {
+        copiado = false
+      }
+
+      if (pestana) pestana.location.href = datos.url_del_compositor
+      else window.open(datos.url_del_compositor, '_blank')
+
+      setCompartido(datos)
+      await fetchVacantes()
+      if (copiado) toast.success('Texto copiado. Pégalo en LinkedIn y publica.')
+      else toast.warning('No se pudo copiar solo: cópialo desde la ventana que se abrió.')
+    } catch (err) {
+      pestana?.close()
       toast.error(errorMessage(err))
     } finally {
       setPublicandoId(null)
@@ -450,9 +493,14 @@ export function VacantesView() {
                 </button>
                 {vacante.visibilidad !== 'interna' && (
                   <button
-                    onClick={() => publicar(vacante)}
-                    disabled={publicandoId === vacante.id}
-                    className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:text-slate-900 disabled:opacity-50"
+                    onClick={() => compartirEnLinkedIn(vacante)}
+                    disabled={publicandoId === vacante.id || vacante.estado !== 'abierta'}
+                    title={
+                      vacante.estado !== 'abierta'
+                        ? 'Solo se comparte una vacante abierta'
+                        : 'Copia el texto y abre LinkedIn para publicar'
+                    }
+                    className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-[#0a66c2] shadow-sm transition-colors hover:border-[#0a66c2] hover:bg-[#0a66c2]/5 disabled:cursor-not-allowed disabled:text-slate-400 disabled:opacity-50 disabled:hover:border-slate-200 disabled:hover:bg-white"
                   >
                     {publicandoId === vacante.id ? (
                       <Loader2 size={13} className="animate-spin" />
@@ -846,6 +894,59 @@ export function VacantesView() {
               className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
             >
               <Send size={15} /> Copiar el texto para compartirlo
+            </button>
+          </div>
+        )}
+      </Modal>
+
+      {/* ------------------------------------------------ Enviado a LinkedIn */}
+      <Modal
+        open={compartido !== null}
+        onClose={() => setCompartido(null)}
+        title="Termina de publicar en LinkedIn"
+        wide
+      >
+        {compartido && (
+          <div className="space-y-4">
+            <p className="rounded-lg bg-[#0a66c2]/5 p-3 text-sm text-slate-700">
+              Se abrió LinkedIn en otra pestaña con la tarjeta de la vacante.{' '}
+              <strong>Pega el texto</strong> (ya está en tu portapapeles) y pulsa publicar.
+            </p>
+
+            <div>
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-sm font-medium text-slate-700">El texto</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(compartido.texto)
+                    toast.success('Copiado otra vez')
+                  }}
+                  className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline"
+                >
+                  <Copy size={12} /> Copiar
+                </button>
+              </div>
+              <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-3 font-sans text-sm text-slate-700">
+                {compartido.texto}
+              </pre>
+            </div>
+
+            <p className="text-xs text-slate-500">{compartido.aviso}</p>
+
+            {/* Honestidad en la pantalla: el sistema entregó el contenido, pero quién
+                pulsa Publicar es la persona y eso no se puede comprobar desde aquí. */}
+            <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+              La vacante queda marcada como <strong>«Enviado a LinkedIn»</strong>, no como
+              publicada: desde aquí no se puede saber si llegaste a pulsar Publicar.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => window.open(compartido.url_del_compositor, '_blank')}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#0a66c2] py-2.5 text-sm font-medium text-white hover:bg-[#004182]"
+            >
+              <Linkedin size={15} /> Volver a abrir LinkedIn
             </button>
           </div>
         )}
