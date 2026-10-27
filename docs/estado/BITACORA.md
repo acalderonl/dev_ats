@@ -68,6 +68,20 @@ enlace que se reparte habría devuelto el `index.html` vacío de la SPA justo do
 probar el flujo. Añadido el proxy en `vite.config.ts` (`VITE_PROXY_TARGET`) y comprobado que
 el puerto 3000 ya devuelve las etiquetas.
 
+**La pantalla de Configuración engañaba, y eso era el verdadero fallo**
+
+El dueño dijo «la conexión sigue sin funcionar». Mirada la base: la tabla `configuracion`
+está **vacía**, así que no es que falle, es que no hay nada que conectar. Pero la pantalla
+mostraba «Sin conectar» y un botón apagado, que se lee como una aplicación rota.
+
+La tarjeta de LinkedIn ahora dice lo que pasa: que **conectar es opcional**, que el botón de
+la tarjeta de la vacante no necesita nada, y que esto otro —publicar solo— exige una
+aplicación propia en LinkedIn porque no hay otra vía. El campo Redirect URI ofrece la URL
+exacta de este sitio con un clic: tiene que coincidir carácter por carácter con la
+registrada en LinkedIn, y es donde se rompen estas conexiones.
+
+No se tocó el flujo OAuth: está entero y sin estrenar, a la espera de esa aplicación.
+
 **Pendiente / avisos**
 - La guía de despliegue (`docs/DESPLIEGUE.md`) es la de **Google Cloud** desde el 20 de
   octubre; la entrada de la sesión 9 todavía habla de Render, que quedó como alternativa al

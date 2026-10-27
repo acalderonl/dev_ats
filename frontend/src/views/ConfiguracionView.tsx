@@ -17,6 +17,10 @@ function errorMessage(err: unknown): string {
   return err instanceof ApiError ? err.message : 'Ocurrió un error inesperado'
 }
 
+/** La página de vuelta del OAuth de LinkedIn en este sitio. Es la que hay que
+ *  registrar en la aplicación de LinkedIn, y tiene que coincidir exactamente. */
+const RETORNO_DE_ESTE_SITIO = `${window.location.origin}/configuracion/linkedin`
+
 /** Campo de texto normal. */
 function Campo({
   etiqueta,
@@ -281,13 +285,22 @@ export function ConfiguracionView() {
           )}
         </div>
 
-        <div className="mb-4 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
-          <p className="flex items-start gap-1.5">
+        <div className="mb-4 space-y-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
+          <p>
+            <strong className="text-slate-800">Esto es opcional.</strong> Para llevar una vacante a
+            LinkedIn no hace falta conectar nada aquí: el botón <strong>LinkedIn</strong> de la
+            tarjeta de la vacante copia el texto y abre el compositor para que la publiques tú.
+          </p>
+          <p>
+            Conectar sirve para lo otro: que el sistema <strong>publique solo</strong>, sin abrir
+            LinkedIn. Para eso LinkedIn exige una aplicación propia —no hay otra vía—, y los tres
+            datos de abajo salen de ella.
+          </p>
+          <p className="flex items-start gap-1.5 text-amber-800">
             <AlertTriangle size={14} className="mt-0.5 shrink-0" />
             <span>
-              Esto publica en <strong>el muro de quien conecta su cuenta</strong>, que es la única vía
-              sin aprobación de LinkedIn. Publicar en la página de empresa o en el tablón de empleos
-              exige ser partner aprobado.
+              Por cualquiera de las dos vías sale en <strong>el muro de quien conecta su cuenta</strong>.
+              La página de empresa y el tablón de empleos exigen ser partner aprobado por LinkedIn.
             </span>
           </p>
         </div>
@@ -306,13 +319,24 @@ export function ConfiguracionView() {
             configurado={config.linkedin_client_secret_configurado}
             pista={config.linkedin_client_secret_pista}
           />
-          <Campo
-            etiqueta="Redirect URI"
-            valor={edicion.linkedin_redirect_uri ?? ''}
-            onChange={(v) => actualizar('linkedin_redirect_uri', v)}
-            placeholder="http://localhost:3000/configuracion/linkedin"
-            ayuda="Tiene que coincidir exactamente con la que registraste en LinkedIn."
-          />
+          <div>
+            <Campo
+              etiqueta="Redirect URI"
+              valor={edicion.linkedin_redirect_uri ?? ''}
+              onChange={(v) => actualizar('linkedin_redirect_uri', v)}
+              placeholder={RETORNO_DE_ESTE_SITIO}
+              ayuda="Tiene que coincidir carácter por carácter con la que registraste en LinkedIn; si no, la conexión se corta ahí."
+            />
+            {edicion.linkedin_redirect_uri !== RETORNO_DE_ESTE_SITIO && (
+              <button
+                type="button"
+                onClick={() => actualizar('linkedin_redirect_uri', RETORNO_DE_ESTE_SITIO)}
+                className="mt-1 text-xs text-brand-600 hover:underline"
+              >
+                Usar la de este sitio: {RETORNO_DE_ESTE_SITIO}
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-4">
