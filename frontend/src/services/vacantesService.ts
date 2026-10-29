@@ -40,6 +40,9 @@ export const vacantesService = {
     apiPatch<Vacante>(`/vacantes/${id}/post-estado`, { post_estado }),
   subirImagen: (file: File) => apiUpload<{ url: string }>('/vacantes/imagen', file),
   vistaPrevia: (id: string) => apiGet<VistaPreviaDelPost>(`/vacantes/${id}/vista-previa`),
+  /** La misma vista previa con lo que hay escrito en el formulario, sin guardar. */
+  vistaPreviaSinGuardar: (data: VacantePayload) =>
+    apiPost<VistaPreviaDelPost>('/vacantes/vista-previa', data),
   /** Vía sin OAuth: prepara el texto y el enlace para publicar a mano. */
   compartirEnLinkedIn: (id: string) =>
     apiPost<ParaCompartirEnLinkedIn>(`/vacantes/${id}/compartir-linkedin`),

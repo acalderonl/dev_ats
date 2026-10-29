@@ -26,6 +26,11 @@ export default defineConfig({
       // en desarrollo Vite devolvería el `index.html` vacío de la SPA y la tarjeta de
       // LinkedIn saldría en blanco justo donde se la quiere probar.
       '/compartir': { target: BACKEND, changeOrigin: false },
+      // Las imágenes guardadas se referencian con una ruta relativa (`/api/v1/media/…`),
+      // que es lo correcto: así la misma URL vale en cualquier dominio. En producción
+      // nginx la reenvía; sin esto, en desarrollo la pedía a Vite y la imagen del post
+      // salía rota en todas las pantallas.
+      '/api': { target: BACKEND, changeOrigin: false },
     },
   },
   preview: {

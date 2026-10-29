@@ -248,3 +248,69 @@ def test_una_vacante_sin_post_no_se_puede_borrar_de_linkedin(
 
     assert respuesta.status_code == 400
     assert "no está publicada" in respuesta.json()["detail"]
+
+
+# ------------------------------------------- La vista previa sin guardar
+
+
+def _borrador(cargo_id: int, **extra) -> dict:
+    return {
+        "cargo_id": cargo_id,
+        "descripcion": "Buscamos a alguien con ganas",
+        "fecha_limite": "2027-01-01T00:00:00Z",
+        **extra,
+    }
+
+
+def test_se_puede_ver_el_post_sin_haber_guardado_la_vacante(client, reclutador_headers, unique_suffix, crear_cargo):
+    """Para ir armando el post hay que poder mirarlo antes de guardar nada."""
+    cargo = crear_cargo(unique_suffix)
+
+    cuerpo = client.post(
+        "/api/v1/vacantes/vista-previa",
+        json=_borrador(cargo["id"], asunto="Vacante de prueba", remuneracion="900.00"),
+        headers=reclutador_headers,
+    ).json()
+
+    assert cuerpo["tarjeta_titulo"] == "Vacante de prueba"
+    assert "900.00" in cuerpo["cuerpo"]
+    assert "#Empleo" in cuerpo["cuerpo"]
+
+
+def test_la_vista_previa_sin_guardar_no_crea_la_vacante(client, reclutador_headers, unique_suffix, crear_cargo):
+    """Mirar no es guardar: una vacante a medias no debe quedarse en la lista."""
+    cargo = crear_cargo(unique_suffix)
+    antes = len(client.get("/api/v1/vacantes", headers=reclutador_headers).json())
+
+    client.post("/api/v1/vacantes/vista-previa", json=_borrador(cargo["id"]), headers=reclutador_headers)
+
+    assert len(client.get("/api/v1/vacantes", headers=reclutador_headers).json()) == antes
+
+
+def test_el_enlace_dice_que_todavia_no_existe(client, reclutador_headers, unique_suffix, crear_cargo):
+    """El `slug` lo pone el servidor al guardar; inventarse uno sería enseñar un enlace roto."""
+    cargo = crear_cargo(unique_suffix)
+
+    cuerpo = client.post(
+        "/api/v1/vacantes/vista-previa", json=_borrador(cargo["id"]), headers=reclutador_headers
+    ).json()
+
+    assert "se-genera-al-guardar" in cuerpo["enlace_para_postular"]
+
+
+def test_la_vista_previa_y_lo_que_se_publica_son_el_mismo_texto(
+    client, reclutador_headers, unique_suffix, crear_cargo, crear_vacante, cuenta_conectada, espiar_publicacion
+):
+    """Lo que más importa de esta pantalla.
+
+    Si la simulación rehiciera el texto por su cuenta, enseñaría algo *parecido* a lo
+    que sale, y "parecido" no sirve para decidir si el post está listo.
+    """
+    vacante = crear_vacante(crear_cargo(unique_suffix)["id"], estado="abierta", asunto="Analista")
+    previa = client.get(f"/api/v1/vacantes/{vacante['id']}/vista-previa", headers=reclutador_headers).json()
+
+    _publicar(client, reclutador_headers, vacante)
+
+    assert espiar_publicacion["texto"] == previa["cuerpo"]
+    assert espiar_publicacion["titulo"] == previa["tarjeta_titulo"]
+    assert espiar_publicacion["descripcion"] == previa["tarjeta_descripcion"]

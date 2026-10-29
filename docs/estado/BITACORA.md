@@ -8,6 +8,47 @@ una funcionalidad que funcione.
 
 ---
 
+## 2026-10-29 — Sesión 14 · Ver el post antes de publicarlo
+
+**Fase:** M1 — integraciones. Lo pidió el dueño: ver la imagen que sube, y una simulación del
+post para irlo armando con criterio.
+
+**Lo construido**
+- **Simulación genérica de red social** (`SimulacionDeRedSocial`): avatar, autor, el texto con
+  las etiquetas en azul, la tarjeta del enlace y la fila de botones. Sin nombre de marca, sin
+  logotipo y con un azul que no es el de ninguna red concreta: se llama «Red social» a propósito,
+  por el encargo expreso de no imitar a nadie.
+- El mismo botón en **dos sitios**: arriba del formulario y en cada tarjeta de vacante.
+- `POST /vacantes/vista-previa`: la misma vista previa **con lo que hay escrito**, sin guardar.
+  Construye una vacante en memoria, la usa y la tira.
+- La imagen subida se ve de verdad en el formulario (antes era una miniatura de 64 px), con
+  Cambiar y Quitar, y un aviso si es WebP —que la red social no acepta—.
+
+**La decisión que sostiene todo esto**
+El texto y los tres datos de la tarjeta los arma **el servidor**, con la misma función que
+publica. Una simulación que rehiciera el texto en la pantalla enseñaría algo *parecido* a lo que
+sale, y "parecido" no sirve para decidir si el post está listo. Hay una prueba que compara la
+vista previa con lo que recibe la llamada de publicar: tienen que ser idénticos.
+
+**Dos fallos reales encontrados al probar en el navegador**
+- 🔴 **La imagen del post salía rota en todo el entorno de desarrollo.** Se referencia con una
+  ruta relativa (`/api/v1/media/…`), que es lo correcto —así vale en cualquier dominio—, pero en
+  desarrollo esa ruta la atendía Vite, no el backend. En producción nginx la reenvía. Añadido el
+  proxy de `/api` en `vite.config.ts`, igual que se hizo con `/compartir`. Comprobado: la imagen
+  pasa de rota a verse, tanto en el formulario como en la simulación.
+- El enlace de una vacante sin guardar no se inventa: dice `(se-genera-al-guardar)`, porque el
+  `slug` lo pone el servidor y enseñar un enlace que no va a existir es peor que no enseñarlo.
+
+**Verificado**
+- En el navegador, los dos caminos: desde la tarjeta de una vacante guardada y desde el
+  formulario sin guardar, con imagen y sin ella.
+- 19 pruebas en el archivo del post (4 nuevas), incluida la que fija que la vista previa y lo
+  que se publica son el mismo texto.
+- `black`, `flake8` y `tsc` limpios.
+
+---
+
+
 ## 2026-10-29 — Sesión 13 · Lo que de verdad se le puede mandar a LinkedIn
 
 **Fase:** M1 — integraciones. Cierra el hueco entre lo que el formulario de la vacante recoge y

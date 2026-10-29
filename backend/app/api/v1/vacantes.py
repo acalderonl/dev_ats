@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from uuid import UUID
 
 import httpx
@@ -225,16 +225,12 @@ def _texto_del_post(vacante: Vacante, enlace: str) -> str:
     return "\n".join(partes)
 
 
-@router.get("/{vacante_id}/vista-previa", response_model=VistaPreviaDelPost)
-def vista_previa_del_post(
-    vacante_id: UUID,
-    request: Request,
-    db: Session = Depends(get_db),
-    _: Usuario = Depends(get_current_user),
-) -> VistaPreviaDelPost:
-    """Cómo se verá el post. Es el mismo texto que se publica, no una aproximación."""
-    vacante = _vacante_o_404(db, vacante_id)
-    enlace = _url_publica(request, vacante)
+def _armar_vista_previa(vacante: Vacante, enlace: str, autor: str) -> VistaPreviaDelPost:
+    """Lo que se verá, construido con las **mismas** piezas que se publican.
+
+    Una pantalla que rehiciera el texto por su cuenta enseñaría algo parecido a lo que
+    sale, y "parecido" no sirve para decidir si el post está listo.
+    """
     texto = _texto_del_post(vacante, enlace)
     return VistaPreviaDelPost(
         asunto=vacante.asunto or vacante.titulo,
@@ -245,7 +241,64 @@ def vista_previa_del_post(
         destinatarios_internos=vacante.destinatarios_internos or [],
         programado_para=vacante.post_programado_para,
         caracteres=len(texto),
+        tarjeta_titulo=vacante.asunto or vacante.titulo,
+        tarjeta_descripcion=vacante.post_cuerpo or vacante.descripcion,
+        tarjeta_dominio=urlparse(enlace).netloc or "",
+        autor=autor,
     )
+
+
+def _nombre_de_quien_publica(db: Session, usuario: Usuario) -> str:
+    """Con qué nombre saldría el post: el de la cuenta conectada, si la hay."""
+    token = db.get(TokenLinkedIn, usuario.id)
+    if token and token.nombre_en_linkedin and not token.revocado:
+        return token.nombre_en_linkedin
+    return f"{usuario.nombres} {usuario.apellidos}".strip()
+
+
+@router.get("/{vacante_id}/vista-previa", response_model=VistaPreviaDelPost)
+def vista_previa_del_post(
+    vacante_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+) -> VistaPreviaDelPost:
+    """Cómo se verá el post. Es el mismo texto que se publica, no una aproximación."""
+    vacante = _vacante_o_404(db, vacante_id)
+    return _armar_vista_previa(vacante, _url_publica(request, vacante), _nombre_de_quien_publica(db, usuario))
+
+
+@router.post("/vista-previa", response_model=VistaPreviaDelPost)
+def vista_previa_sin_guardar(
+    payload: VacanteCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_roles("super_admin", "reclutador")),
+) -> VistaPreviaDelPost:
+    """La misma vista previa, pero con lo que hay escrito en el formulario.
+
+    Existe para poder ir viendo el post **mientras se arma**, sin obligar a guardar
+    una vacante a medias solo para mirarla. La vacante que se construye aquí no se
+    añade a la sesión: se usa y se tira.
+    """
+    cargo = db.get(Cargo, payload.cargo_id)
+    if cargo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cargo no encontrado")
+
+    vacante = Vacante(
+        **payload.model_dump(exclude={"campos_personalizados", "destinatarios_internos"}),
+        titulo=cargo.nombre,
+        # Todavía no hay slug: lo pone el servidor al guardar. El enlace de la vista
+        # previa lo dice en vez de inventarse uno que no va a existir.
+        slug="(se-genera-al-guardar)",
+        campos_personalizados=[c.model_dump() for c in payload.campos_personalizados],
+        destinatarios_internos=[str(c) for c in payload.destinatarios_internos],
+    )
+    vacante.cargo = cargo
+    vacante.tipo_contrato = db.get(TipoContrato, payload.tipo_contrato_id) if payload.tipo_contrato_id else None
+
+    enlace = f"{_origen_del_frontend(request)}/postular/{vacante.slug}"
+    return _armar_vista_previa(vacante, enlace, _nombre_de_quien_publica(db, usuario))
 
 
 @router.post("/{vacante_id}/compartir-linkedin", response_model=ParaCompartirEnLinkedIn)

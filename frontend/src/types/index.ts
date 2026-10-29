@@ -177,6 +177,12 @@ export interface VacantePublica {
 }
 
 export interface VistaPreviaDelPost {
+  /** Lo que se le manda a la red para dibujar la tarjeta del enlace. */
+  tarjeta_titulo: string
+  tarjeta_descripcion: string
+  tarjeta_dominio: string
+  /** Con qué nombre saldría el post: el muro de quien conecta su cuenta. */
+  autor: string
   asunto: string
   cuerpo: string
   imagen_url: string | null

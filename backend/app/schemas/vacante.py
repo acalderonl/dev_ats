@@ -168,7 +168,12 @@ class CambioDeEstadoDelPost(BaseModel):
 
 
 class VistaPreviaDelPost(BaseModel):
-    """Cómo se verá el post antes de publicarlo, y por dónde puede salir."""
+    """Cómo se verá el post antes de publicarlo, y por dónde puede salir.
+
+    Los tres campos de `tarjeta_*` son lo que se le manda a la red social para que
+    dibuje la tarjeta del enlace. Van aquí para que la simulación enseñe **lo que de
+    verdad se envía** y no una reconstrucción parecida hecha en la pantalla.
+    """
 
     asunto: str
     cuerpo: str
@@ -178,6 +183,12 @@ class VistaPreviaDelPost(BaseModel):
     destinatarios_internos: list[str]
     programado_para: datetime | None
     caracteres: int
+
+    tarjeta_titulo: str
+    tarjeta_descripcion: str
+    tarjeta_dominio: str
+    # Quién aparecería publicando. Es el muro de quien conecta su cuenta.
+    autor: str
 
 
 class ResultadoDePublicacion(BaseModel):

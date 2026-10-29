@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card } from '@/components/common/Card'
+import { SimulacionDeRedSocial } from '@/components/common/SimulacionDeRedSocial'
 import { Badge } from '@/components/common/Badge'
 import { Modal } from '@/components/common/Modal'
 import { GestionCatalogoModal } from '@/components/catalogo/GestionCatalogoModal'
@@ -251,15 +252,9 @@ export function VacantesView() {
     }
   }
 
-  async function guardar(e: React.FormEvent) {
-    e.preventDefault()
-    if (!form.cargo_id) return toast.error('Elige el cargo de la vacante')
-    if (!form.fecha_limite) return toast.error('Falta la fecha límite')
-    if (necesitaCorreos && correosInternos.length === 0) {
-      return toast.error('Una vacante interna o mixta necesita al menos un correo destinatario')
-    }
-
-    const payload = {
+  /** Lo que el formulario manda al servidor. Lo usan guardar y la vista previa. */
+  function payloadDelFormulario() {
+    return {
       cargo_id: Number(form.cargo_id),
       descripcion: form.descripcion,
       fecha_limite: new Date(form.fecha_limite).toISOString(),
@@ -279,6 +274,33 @@ export function VacantesView() {
       visibilidad: form.visibilidad,
       destinatarios_internos: correosInternos,
     }
+  }
+
+  /**
+   * La simulación con lo que hay escrito ahora, sin guardar.
+   *
+   * El texto lo arma el servidor con las mismas piezas que publica: así lo que se ve
+   * aquí es lo que va a salir, no una reconstrucción parecida hecha en la pantalla.
+   */
+  async function verSimulacionDelFormulario() {
+    if (!form.cargo_id) return toast.error('Elige primero el cargo: de él sale el título del post')
+    if (!form.fecha_limite) return toast.error('Falta la fecha límite: sale en el post')
+    try {
+      setPrevia(await vacantesService.vistaPreviaSinGuardar(payloadDelFormulario()))
+    } catch (err) {
+      toast.error(errorMessage(err))
+    }
+  }
+
+  async function guardar(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.cargo_id) return toast.error('Elige el cargo de la vacante')
+    if (!form.fecha_limite) return toast.error('Falta la fecha límite')
+    if (necesitaCorreos && correosInternos.length === 0) {
+      return toast.error('Una vacante interna o mixta necesita al menos un correo destinatario')
+    }
+
+    const payload = payloadDelFormulario()
 
     setGuardando(true)
     try {
@@ -614,6 +636,16 @@ export function VacantesView() {
         confirmarCierre="Se perderá lo que hayas escrito en el formulario."
       >
         <form onSubmit={guardar} className="space-y-6">
+          {/* Arriba del todo, para poder mirar cómo va quedando el post sin bajar
+              hasta el final ni guardar una vacante a medias. */}
+          <button
+            type="button"
+            onClick={verSimulacionDelFormulario}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-brand-200 bg-brand-50 py-2.5 text-sm font-medium text-brand-700 transition-colors hover:border-brand-300 hover:bg-brand-100"
+          >
+            <Eye size={15} /> Ver cómo quedará el post
+          </button>
+
           <Seccion numero={1} titulo="Cargo de la vacante">
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">Cargo *</label>
@@ -780,24 +812,50 @@ export function VacantesView() {
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">Imagen del post</label>
               {form.post_imagen_url ? (
-                <div className="flex items-center gap-3 rounded-lg border border-slate-200 p-2">
+                <div className="overflow-hidden rounded-lg border border-slate-200">
                   <img
                     src={form.post_imagen_url}
                     alt="Imagen del post"
-                    className="h-16 w-16 rounded object-cover"
+                    className="max-h-56 w-full bg-slate-50 object-contain"
                   />
-                  <button
-                    type="button"
-                    onClick={() => actualizar({ post_imagen_url: null })}
-                    className="flex items-center gap-1 text-xs text-red-600 hover:underline"
-                  >
-                    <Trash2 size={13} /> Quitar
-                  </button>
+                  <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-3 py-2">
+                    <span className="truncate text-xs text-slate-500">
+                      Así se verá en la tarjeta del post
+                    </span>
+                    <div className="flex shrink-0 gap-3">
+                      <label className="cursor-pointer text-xs font-medium text-brand-600 hover:underline">
+                        Cambiar
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/gif,image/webp"
+                          className="hidden"
+                          onChange={(e) => {
+                            const archivo = e.target.files?.[0]
+                            if (archivo) subirImagen(archivo)
+                            e.target.value = ''
+                          }}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => actualizar({ post_imagen_url: null })}
+                        className="flex items-center gap-1 text-xs text-red-600 hover:underline"
+                      >
+                        <Trash2 size={13} /> Quitar
+                      </button>
+                    </div>
+                  </div>
+                  {form.post_imagen_url.toLowerCase().endsWith('.webp') && (
+                    <p className="border-t border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      Es WebP: se guarda bien, pero la red social no acepta ese formato y el post
+                      saldría sin imagen. Súbela en JPG o PNG.
+                    </p>
+                  )}
                 </div>
               ) : (
                 <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 py-4 text-sm text-slate-500 hover:border-brand-400 hover:text-brand-600">
                   {subiendoImagen ? <Loader2 size={16} className="animate-spin" /> : <ImageIcon size={16} />}
-                  {subiendoImagen ? 'Subiendo...' : 'JPG, PNG, GIF o WebP (máx. 5 MB)'}
+                  {subiendoImagen ? 'Subiendo...' : 'JPG, PNG o GIF (máx. 5 MB)'}
                   <input
                     type="file"
                     accept="image/jpeg,image/png,image/gif,image/webp"
@@ -927,19 +985,7 @@ export function VacantesView() {
       >
         {previa && (
           <div className="space-y-4">
-            <div className="rounded-xl border border-slate-200 p-4">
-              {previa.imagen_url && (
-                <img
-                  src={previa.imagen_url}
-                  alt="Imagen del post"
-                  className="mb-3 max-h-64 w-full rounded-lg object-cover"
-                />
-              )}
-              {/* Sin titular aparte: el cuerpo ya empieza por el asunto, y en LinkedIn
-                  no hay encabezado separado. Esto es exactamente lo que se publica. */}
-              <p className="whitespace-pre-wrap text-sm text-slate-700">{previa.cuerpo}</p>
-            </div>
-
+            <SimulacionDeRedSocial previa={previa} />
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
               <span>{previa.caracteres} caracteres</span>
               <span className="capitalize">Visibilidad: {previa.visibilidad}</span>
