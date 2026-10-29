@@ -112,15 +112,22 @@ Contraseña para los tres: `Demo1234!`
 
 ### El CV y el formulario del candidato
 
-El formulario de postulación son **tres pasos** y pide el esquema entero que entregó la
-institución. El mapeo campo por campo —qué se pide, en qué columna cae y qué busca el lector—
-está en **`docs/FORMULARIO_DEL_CANDIDATO.md`**, y es el contrato del futuro robot de ETL.
+El formulario de postulación son **dos pasos** y pide el esquema entero que entregó la
+institución. El mapeo campo por campo —qué se pide y en qué columna cae— está en
+**`docs/FORMULARIO_DEL_CANDIDATO.md`**, y es el contrato del robot de ETL.
 
-Dos lectores, y el orden importa:
+🔴 **El formulario no lee el CV.** Tuvo un paso que lo subía y rellenaba el resto con lo
+extraído; se quitó porque eso es trabajo del robot. Lo que entra por el portal se guarda siempre
+con `origen_datos = manual`. El candidato sí puede **adjuntar** su currículum: eso es conservar
+el archivo, no leerlo.
+
+Dos lectores siguen existiendo, para el robot y para quien los llame:
 
 - `extraccion_cv_service.py` es el bueno: manda el archivo a Claude y devuelve los ~40 campos
   del formulario. Es lo que usa `POST /api/v1/public/leer-cv`, que además **guarda el archivo**
   en la misma subida: pedirlo dos veces costaría otra llamada de pago.
+  ⚠️ Esa ruta **ya no la llama nadie desde el portal** y sigue siendo pública. Cada llamada
+  cuesta dinero; cuando se sepa cómo se identifica el robot, conviene cerrarla con sesión.
 - `cv_parser_service.py` extrae texto de `.pdf` (pdfplumber) y `.docx` (docx2txt) y aplica
   **heurísticas con expresiones regulares** (no IA). Es el respaldo cuando no hay clave de
   Anthropic configurada: saca cuatro campos y **lo dice**, en vez de aparentar que leyó el CV.
