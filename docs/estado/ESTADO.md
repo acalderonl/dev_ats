@@ -1,6 +1,6 @@
 # Estado del proyecto — dónde estamos AHORA
 
-> Última actualización: **2026-10-29** · Sesiones: **13** (en 11 días) · Pruebas: **195 en verde**
+> Última actualización: **2026-10-29** · Sesiones: **13** (en 11 días) · Pruebas: **197 en verde**
 > Este archivo se lee al empezar cada sesión. Si algo aquí ya no es cierto, se corrige antes de seguir.
 
 ## En una línea

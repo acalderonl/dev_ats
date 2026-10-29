@@ -65,6 +65,25 @@ una imagen de verdad en una carpeta temporal.
   y `#Empleo #DesarrolladorFullStack #TalentoHumano`.
 - `black`, `flake8` y `tsc` limpios.
 
+**Un 422 que llevaba ahí desde el principio**
+
+El dueño pegó una línea de su log: `POST /api/v1/vacantes/imagen 422`. Subir la imagen del
+post **nunca había funcionado desde la interfaz**. El parámetro del endpoint se llamaba
+`archivo` y FastAPI busca el campo del formulario por el nombre del parámetro; el frontend manda
+siempre `file`. Las demás subidas (`/public/foto`, `/public/leer-cv`) ya usaban `file`, así que
+esta era la única rota.
+
+Por qué no lo cazó nadie: esa ruta **no tenía ninguna prueba**, y las que sí tienen las escribió
+quien también escribió el endpoint, usando el mismo nombre en los dos lados. Una prueba así se
+pone de acuerdo con el código, no con quien llama.
+
+Ahora hay dos: una sube la imagen con el campo que manda el frontend, y otra lee el esquema
+OpenAPI de la propia aplicación y comprueba que **todas** las rutas que reciben un archivo
+llaman al campo `file` —también las que aún no existen—. Las dos se comprobaron poniendo el
+fallo de vuelta: fallan con él y pasan sin él.
+
+Comprobado además contra la aplicación levantada: la subida devuelve 200 y la imagen se sirve.
+
 **Pendiente / avisos**
 - 🔴 **Nada de esto se ha probado contra LinkedIn de verdad.** Publicar haría un post real en el
   muro del dueño, y eso no es mío para pulsarlo. Lo comprobado es todo lo anterior a la llamada:

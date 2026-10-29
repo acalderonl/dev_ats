@@ -175,11 +175,14 @@ def cambiar_estado_del_post(
 
 @router.post("/imagen", response_model=ImagenSubidaOut)
 async def subir_imagen_de_post(
-    archivo: UploadFile = File(...),
+    # El campo se llama `file` porque es lo que manda `apiUpload` del frontend, igual
+    # que el resto de las subidas. Se llamó `archivo` y devolvía 422 a todo el mundo:
+    # FastAPI busca el campo por el nombre del parámetro.
+    file: UploadFile = File(...),
     _: Usuario = Depends(require_roles("super_admin", "reclutador")),
 ) -> ImagenSubidaOut:
     """Sube la imagen y devuelve su URL, que luego se guarda en la vacante."""
-    return ImagenSubidaOut(url=await almacenamiento_service.guardar_imagen_de_post(archivo))
+    return ImagenSubidaOut(url=await almacenamiento_service.guardar_imagen_de_post(file))
 
 
 def _etiqueta(texto: str) -> str:
