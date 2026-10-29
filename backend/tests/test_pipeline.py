@@ -1,24 +1,7 @@
-from datetime import datetime, timedelta, timezone
+def _crear_postulacion(client, reclutador_headers, unique_suffix, crear_cargo, crear_vacante) -> str:
+    cargo = crear_cargo(unique_suffix)
 
-
-def _crear_postulacion(client, reclutador_headers, unique_suffix) -> str:
-    cargo = client.post(
-        "/api/v1/cargos",
-        json={"nombre": f"Cargo Pipeline {unique_suffix}", "departamento": "Tech", "descripcion": "x"},
-        headers=reclutador_headers,
-    ).json()
-
-    fecha = datetime.now(timezone.utc) + timedelta(days=10)
-    vacante = client.post(
-        "/api/v1/vacantes",
-        json={
-            "titulo": f"Vacante Pipeline {unique_suffix}",
-            "cargo_id": cargo["id"],
-            "descripcion": "Descripción",
-            "fecha_limite": fecha.isoformat(),
-        },
-        headers=reclutador_headers,
-    ).json()
+    vacante = crear_vacante(cargo["id"])
 
     postulante = client.post(
         f"/api/v1/public/vacantes/{vacante['slug']}/postular",
@@ -27,6 +10,7 @@ def _crear_postulacion(client, reclutador_headers, unique_suffix) -> str:
             "apellidos": "Gómez",
             "cedula": f"18{unique_suffix[:8]}",
             "email": "ana.gomez@example.com",
+            "acepta_privacidad": True,
         },
     ).json()
 
@@ -37,8 +21,8 @@ def _crear_postulacion(client, reclutador_headers, unique_suffix) -> str:
     return postulacion["id"]
 
 
-def test_no_puede_avanzar_sin_autorizacion(client, reclutador_headers, unique_suffix):
-    postulacion_id = _crear_postulacion(client, reclutador_headers, unique_suffix)
+def test_no_puede_avanzar_sin_autorizacion(client, reclutador_headers, unique_suffix, crear_cargo, crear_vacante):
+    postulacion_id = _crear_postulacion(client, reclutador_headers, unique_suffix, crear_cargo, crear_vacante)
 
     response = client.patch(
         f"/api/v1/postulaciones/{postulacion_id}/pipeline-status",
@@ -48,12 +32,10 @@ def test_no_puede_avanzar_sin_autorizacion(client, reclutador_headers, unique_su
     assert response.status_code == 403
 
 
-def test_autorizar_y_avanzar_pipeline(client, reclutador_headers, unique_suffix):
-    postulacion_id = _crear_postulacion(client, reclutador_headers, unique_suffix)
+def test_autorizar_y_avanzar_pipeline(client, reclutador_headers, unique_suffix, crear_cargo, crear_vacante):
+    postulacion_id = _crear_postulacion(client, reclutador_headers, unique_suffix, crear_cargo, crear_vacante)
 
-    autorizar = client.post(
-        f"/api/v1/postulaciones/{postulacion_id}/autorizar", headers=reclutador_headers
-    )
+    autorizar = client.post(f"/api/v1/postulaciones/{postulacion_id}/autorizar", headers=reclutador_headers)
     assert autorizar.status_code == 200
     assert autorizar.json()["estado_pipeline"] == "postulacion_revisada"
     assert autorizar.json()["autorizado_por"] is not None
@@ -67,8 +49,8 @@ def test_autorizar_y_avanzar_pipeline(client, reclutador_headers, unique_suffix)
     assert avanzar.json()["estado_pipeline"] == "entrevista"
 
 
-def test_no_puede_retroceder_etapa(client, reclutador_headers, unique_suffix):
-    postulacion_id = _crear_postulacion(client, reclutador_headers, unique_suffix)
+def test_no_puede_retroceder_etapa(client, reclutador_headers, unique_suffix, crear_cargo, crear_vacante):
+    postulacion_id = _crear_postulacion(client, reclutador_headers, unique_suffix, crear_cargo, crear_vacante)
     client.post(f"/api/v1/postulaciones/{postulacion_id}/autorizar", headers=reclutador_headers)
     client.patch(
         f"/api/v1/postulaciones/{postulacion_id}/pipeline-status",
@@ -84,8 +66,8 @@ def test_no_puede_retroceder_etapa(client, reclutador_headers, unique_suffix):
     assert retroceso.status_code == 409
 
 
-def test_puede_descartar_en_cualquier_momento(client, reclutador_headers, unique_suffix):
-    postulacion_id = _crear_postulacion(client, reclutador_headers, unique_suffix)
+def test_puede_descartar_en_cualquier_momento(client, reclutador_headers, unique_suffix, crear_cargo, crear_vacante):
+    postulacion_id = _crear_postulacion(client, reclutador_headers, unique_suffix, crear_cargo, crear_vacante)
     client.post(f"/api/v1/postulaciones/{postulacion_id}/autorizar", headers=reclutador_headers)
 
     descartar = client.patch(
@@ -113,8 +95,10 @@ def test_evaluacion_requiere_postulacion_existente(client, entrevistador_headers
     assert response.status_code == 404
 
 
-def test_registrar_evaluacion(client, reclutador_headers, entrevistador_headers, unique_suffix):
-    postulacion_id = _crear_postulacion(client, reclutador_headers, unique_suffix)
+def test_registrar_evaluacion(
+    client, reclutador_headers, entrevistador_headers, unique_suffix, crear_cargo, crear_vacante
+):
+    postulacion_id = _crear_postulacion(client, reclutador_headers, unique_suffix, crear_cargo, crear_vacante)
     client.post(f"/api/v1/postulaciones/{postulacion_id}/autorizar", headers=reclutador_headers)
 
     response = client.post(

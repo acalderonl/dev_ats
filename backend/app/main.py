@@ -4,9 +4,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1 import api_router
+from app.api.v1 import compartir
 from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.seed import run_seed
+from app.seed_permisos import sembrar_permisos
 
 settings = get_settings()
 
@@ -16,22 +18,30 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         run_seed(db)
+        # Después del seed: necesita que los roles existan para asignarles la plantilla.
+        sembrar_permisos(db)
     finally:
         db.close()
     yield
 
 
-app = FastAPI(title="Sistema ATS", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="ANAI - Seleccion de personal", version="1.0.0", lifespan=lifespan)
 
+# En producción los orígenes salen solo de FRONTEND_ORIGIN; en desarrollo se añade
+# localhost para no tener que configurarlo. Ver `Settings.origenes_permitidos`.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_origin, "http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=settings.origenes_permitidos(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 app.include_router(api_router, prefix="/api/v1")
+
+# Fuera de /api/v1 a proposito: es una URL que se pega en LinkedIn o se manda por
+# WhatsApp, y "/compartir/analista-de-reclutamiento" se lee mejor que una ruta de API.
+app.include_router(compartir.router, prefix="/compartir", tags=["Compartir"])
 
 
 @app.get("/health")

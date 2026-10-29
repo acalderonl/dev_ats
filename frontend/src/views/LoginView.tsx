@@ -33,14 +33,17 @@ export function LoginView() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+    // Degradado con los dos azules de la institución: el institucional y el oscuro
+    // de las franjas del sitio.
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-700 via-brand-600 to-brand-900 px-4 py-10">
+      <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-xl sm:p-8">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">
-            ATS
-          </div>
-          <h1 className="text-lg font-semibold text-slate-900">Iniciar sesión</h1>
-          <p className="mt-1 text-sm text-slate-500">Conectado a la API real (FastAPI + PostgreSQL)</p>
+          <img src="/escudo-anai.svg" alt="Escudo de la ANAI" className="mx-auto mb-4 h-20 w-auto" />
+          <h1 className="text-xl font-semibold tracking-wide text-escudo">ANAI</h1>
+          <p className="mt-0.5 text-xs leading-snug text-slate-500">
+            Academia Naval Almirante Illingworth
+          </p>
+          <p className="mt-4 text-sm font-medium text-slate-700">Selección de personal</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

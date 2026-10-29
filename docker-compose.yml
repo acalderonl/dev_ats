@@ -23,31 +23,47 @@ services:
       dockerfile: Dockerfile
     container_name: ats_python_backend
     restart: unless-stopped
+    # La imagen corre como usuario sin privilegios, que es lo correcto en un servidor.
+    # Aquí se vuelve a root porque el código llega por un bind mount desde Windows y la
+    # carpeta de medios es un volumen creado antes: con otro usuario no podría escribir.
+    user: root
+    # Desarrollo: `--reload` vigila el disco y reinicia al guardar. La imagen trae el
+    # comando sin recarga, que es el que se usa al desplegar.
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     ports:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-ats_user}:${POSTGRES_PASSWORD:-ats_password}@db:5432/${POSTGRES_DB:-ats_db}
-      SECRET_KEY: ${SECRET_KEY:-supersecretkey_ats_2026}
-      LINKEDIN_CLIENT_ID: ${LINKEDIN_CLIENT_ID:-mock_client_id}
-      LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET:-mock_client_secret}
+      # Sin valor por defecto a propósito: firma los JWT. Si falta, compose se niega
+      # a levantar en vez de arrancar con una clave que cualquiera puede adivinar.
+      SECRET_KEY: '${SECRET_KEY:?falta SECRET_KEY - copia .env.example a .env y genera uno con python -c "import secrets; print(secrets.token_urlsafe(48))"}'
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
     volumes:
       - ./backend:/app
+      # Las imágenes de los posts viven aquí: sobreviven a `docker compose down`,
+      # no a `down -v`. Fuera del bind de ./backend para no acabar en git.
+      - media_data:/app/media
     depends_on:
       db:
         condition: service_healthy
 
   frontend:
+    # La imagen de producción compila con Vite y sirve con nginx. En desarrollo se usa
+    # solo la etapa de compilación, que es la que tiene Node, y se arranca el servidor
+    # de Vite con recarga en caliente sobre el código montado.
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: compilacion
     container_name: ats_web_frontend
     restart: unless-stopped
+    command: npm run dev
     ports:
       - "3000:3000"
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api/v1}
+      # Para /compartir, que lo sirve el backend y Vite reenvía (ver vite.config.ts).
+      VITE_PROXY_TARGET: ${VITE_PROXY_TARGET:-http://backend:8000}
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -58,3 +74,4 @@ services:
 
 volumes:
   postgres_data:
+  media_data:

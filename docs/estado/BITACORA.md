@@ -8,6 +8,788 @@ una funcionalidad que funcione.
 
 ---
 
+## 2026-10-29 — Sesión 14 · Ver el post antes de publicarlo
+
+**Fase:** M1 — integraciones. Lo pidió el dueño: ver la imagen que sube, y una simulación del
+post para irlo armando con criterio.
+
+**Lo construido**
+- **Simulación genérica de red social** (`SimulacionDeRedSocial`): avatar, autor, el texto con
+  las etiquetas en azul, la tarjeta del enlace y la fila de botones. Sin nombre de marca, sin
+  logotipo y con un azul que no es el de ninguna red concreta: se llama «Red social» a propósito,
+  por el encargo expreso de no imitar a nadie.
+- El mismo botón en **dos sitios**: arriba del formulario y en cada tarjeta de vacante.
+- `POST /vacantes/vista-previa`: la misma vista previa **con lo que hay escrito**, sin guardar.
+  Construye una vacante en memoria, la usa y la tira.
+- La imagen subida se ve de verdad en el formulario (antes era una miniatura de 64 px), con
+  Cambiar y Quitar, y un aviso si es WebP —que la red social no acepta—.
+
+**La decisión que sostiene todo esto**
+El texto y los tres datos de la tarjeta los arma **el servidor**, con la misma función que
+publica. Una simulación que rehiciera el texto en la pantalla enseñaría algo *parecido* a lo que
+sale, y "parecido" no sirve para decidir si el post está listo. Hay una prueba que compara la
+vista previa con lo que recibe la llamada de publicar: tienen que ser idénticos.
+
+**Dos fallos reales encontrados al probar en el navegador**
+- 🔴 **La imagen del post salía rota en todo el entorno de desarrollo.** Se referencia con una
+  ruta relativa (`/api/v1/media/…`), que es lo correcto —así vale en cualquier dominio—, pero en
+  desarrollo esa ruta la atendía Vite, no el backend. En producción nginx la reenvía. Añadido el
+  proxy de `/api` en `vite.config.ts`, igual que se hizo con `/compartir`. Comprobado: la imagen
+  pasa de rota a verse, tanto en el formulario como en la simulación.
+- El enlace de una vacante sin guardar no se inventa: dice `(se-genera-al-guardar)`, porque el
+  `slug` lo pone el servidor y enseñar un enlace que no va a existir es peor que no enseñarlo.
+
+**Verificado**
+- En el navegador, los dos caminos: desde la tarjeta de una vacante guardada y desde el
+  formulario sin guardar, con imagen y sin ella.
+- 19 pruebas en el archivo del post (4 nuevas), incluida la que fija que la vista previa y lo
+  que se publica son el mismo texto.
+- `black`, `flake8` y `tsc` limpios.
+
+---
+
+
+## 2026-10-29 — Sesión 13 · Lo que de verdad se le puede mandar a LinkedIn
+
+**Fase:** M1 — integraciones. Cierra el hueco entre lo que el formulario de la vacante recoge y
+lo que llegaba a LinkedIn.
+
+**La pregunta del dueño:** «de nuestro modal de nueva vacante, ¿qué más podemos usar con el
+token que ya tenemos conectado?». La respuesta salió de leer la documentación oficial, no de
+suponer: la Posts API y la Images API de LinkedIn.
+
+**Lo que se encontró al leerla, y que nadie había visto**
+
+🔴 **La tarjeta del enlace salía desnuda.** La documentación es literal: la Posts API *«does not
+support URL scraping for article post creation»*. Nosotros mandábamos solo la URL, así que el
+post automático habría salido con una tarjeta sin puesto, sin descripción y sin imagen. Y el
+matiz que lo hace confuso: las etiquetas Open Graph que montamos el 26 **sí sirven**, pero solo
+para el camino del compositor, donde LinkedIn lee la página. Por API hay que mandar `title`,
+`description` y `thumbnail` a mano. Es el cambio con más efecto visible de la sesión.
+
+🔴 **La imagen del post nunca salía.** `publicar_en_el_muro` aceptaba una imagen desde el primer
+día, pero nadie se la pasaba y no había quien la subiera. Todos los posts iban solo con texto.
+
+⚠️ **WebP.** Nuestra subida lo acepta; LinkedIn no (solo JPG, PNG y GIF). Una imagen WebP se
+guardaba bien y habría hecho fallar la publicación.
+
+**Lo construido**
+- Subida de la imagen a `/rest/images` (registrar + mandar el archivo) y su URN como miniatura
+  de la tarjeta, con título y descripción de la vacante.
+- Ningún problema con la imagen tumba el post: si falta el archivo, si es WebP o si LinkedIn la
+  rechaza, **sale igual sin miniatura** y el aviso lo dice. Publicar sin foto se ve peor; no
+  publicar por la foto es peor todavía.
+- En el texto, la fecha de cierre y etiquetas (`#Empleo`, el cargo y su clasificación), sin
+  tildes a propósito: una etiqueta con tilde y otra sin ella son dos etiquetas distintas, y quien
+  busca escribe la fácil.
+- `PATCH` y `DELETE` del post, con sus botones en la tarjeta: reescribir el texto —lo único que
+  LinkedIn deja cambiar— y borrarlo. Al borrarlo la vacante vuelve a **borrador**, porque decir
+  "publicado" de algo que ya no existe sería mentir en la propia pantalla. El borrado pregunta
+  antes: es algo que ya vio gente y no se deshace.
+- Una publicación **simulada** no se puede tocar en LinkedIn y se dice con esas palabras, en vez
+  de mandar un id inventado y recoger un error feo.
+
+**Lo que se confirmó que NO se puede, y conviene no volver a intentarlo**
+- **Programar.** `lifecycleState` solo acepta `PUBLISHED` al crear: LinkedIn no programa ni
+  guarda borradores por API. M1.6 la tiene que ejecutar un proceso nuestro.
+- **Leer estadísticas** del post: `r_member_social` es permiso restringido.
+- **Publicar en la página de la ANAI**: sigue necesitando ser partner.
+
+**Un error propio, corregido por una prueba**
+La prueba de la miniatura apuntaba a una imagen que no existía en disco, y pasó a verde
+diciendo que no se envió ninguna. Tenía razón la prueba, no el código: se cambió para escribir
+una imagen de verdad en una carpeta temporal.
+
+**Verificado**
+- 11 pruebas nuevas; la suite queda en 195 en verde (eran 184).
+- La vista previa del post, pedida a la API con una vacante real, devuelve ya la fecha de cierre
+  y `#Empleo #DesarrolladorFullStack #TalentoHumano`.
+- `black`, `flake8` y `tsc` limpios.
+
+**Un 422 que llevaba ahí desde el principio**
+
+El dueño pegó una línea de su log: `POST /api/v1/vacantes/imagen 422`. Subir la imagen del
+post **nunca había funcionado desde la interfaz**. El parámetro del endpoint se llamaba
+`archivo` y FastAPI busca el campo del formulario por el nombre del parámetro; el frontend manda
+siempre `file`. Las demás subidas (`/public/foto`, `/public/leer-cv`) ya usaban `file`, así que
+esta era la única rota.
+
+Por qué no lo cazó nadie: esa ruta **no tenía ninguna prueba**, y las que sí tienen las escribió
+quien también escribió el endpoint, usando el mismo nombre en los dos lados. Una prueba así se
+pone de acuerdo con el código, no con quien llama.
+
+Ahora hay dos: una sube la imagen con el campo que manda el frontend, y otra lee el esquema
+OpenAPI de la propia aplicación y comprueba que **todas** las rutas que reciben un archivo
+llaman al campo `file` —también las que aún no existen—. Las dos se comprobaron poniendo el
+fallo de vuelta: fallan con él y pasan sin él.
+
+Comprobado además contra la aplicación levantada: la subida devuelve 200 y la imagen se sirve.
+
+**Pendiente / avisos**
+- 🔴 **Nada de esto se ha probado contra LinkedIn de verdad.** Publicar haría un post real en el
+  muro del dueño, y eso no es mío para pulsarlo. Lo comprobado es todo lo anterior a la llamada:
+  qué se arma, qué se manda y qué pasa cuando falla. La primera publicación real dirá si la
+  miniatura y la tarjeta salen como esperamos.
+- El texto del post no comprueba el límite de caracteres de LinkedIn. Con una descripción muy
+  larga, la API respondería `FIELD_LENGTH_TOO_LONG`.
+
+---
+
+
+## 2026-10-28 — Sesión 12 · El formulario del candidato, entero
+
+**Fase:** **M2.1 cerrada** (el CV ya no se tira) y el formulario de postulación rehecho contra
+el esquema que entregó la institución.
+
+**El encargo:** mapear `docs/resouces/ESQUEMA FORMULARIO PARA APLICANTE ATS.docx`, reformar el
+formulario «con foto, con todo», y confirmar que la base de datos lo soporta.
+
+**Lo primero fue leer el documento, que no tiene texto.** `docx2txt` devuelve cero caracteres:
+son ocho capturas de la pantalla de Hiring Room. Se descomprimió el `.docx` y se leyeron las
+imágenes de `word/media/`. De ahí salió el mapeo.
+
+**La base ya lo tenía, y es cierto.** Comprobado tabla por tabla: `postulantes` con sus 20
+columnas, más `postulante_educacion`, `postulante_idiomas` y `postulante_experiencia` (migración
+0007). El backend también: `PostularRequest` ya aceptaba los ~40 campos. Lo que estaba viejo era
+**la pantalla**: seguía siendo la de 12 campos, y llamaba al lector antiguo (`/parse-cv`) en vez
+del bueno (`/leer-cv`).
+
+**Lo construido**
+- Formulario de tres pasos: importar el CV, datos personales (con foto) e información adicional,
+  con educación, idiomas, experiencia y redes **repetibles**.
+- La foto y el CV **se guardan de verdad**. Era la fase M2.1: hasta hoy el CV se leía en memoria
+  y se tiraba, y quedaba lo que la extracción hubiera entendido y nada con qué contrastarlo.
+- `/leer-cv` guarda y lee **en la misma subida**. Pedir el archivo dos veces haría al candidato
+  subirlo dos veces, y la segunda cuesta otra llamada de pago.
+- `docs/FORMULARIO_DEL_CANDIDATO.md`: el mapeo campo por campo. Es el contrato del robot de ETL.
+
+**Lo que más importa de este cambio: dónde acaban esos archivos**
+La foto y el CV son datos personales. `/api/v1/media` va **sin autenticación** a propósito,
+porque LinkedIn tiene que poder leer la imagen de un post. Colgar ahí el CV de alguien habría
+dejado su hoja de vida a un nombre de archivo de distancia, y un nombre difícil de adivinar no
+es un control de acceso. Van a `media_data/postulantes/`, salen por `/api/v1/archivos`, que pide
+sesión, y la ruta pública **se niega a servir esa carpeta**. Hay una prueba que lo comprueba.
+
+**Dos decisiones contra el esquema de referencia, a propósito**
+- **Campo con sugerencias en vez de selector cerrado** para país, institución, idioma, industria
+  y área. Mantener a mano las 195 nacionalidades o las universidades del mundo sería prometer
+  una lista completa que nunca lo estaría, y dejaría fuera a una persona real. Cerrados se
+  quedan los conjuntos que sí lo son: género, nivel de estudio, jerarquía, nivel de idioma.
+- **Localidad es texto libre.** En la referencia es un selector; mantener las ciudades del
+  Ecuador al día no lo íbamos a hacer.
+
+**Dos fallos reales que aparecieron al probar, no al escribir**
+- Los tres campos con sugerencias (Nacionalidad, País, Provincia) **se validaban pero no
+  enseñaban el error**: `Sugerido` no pintaba el mensaje. Se veía pulsando Continuar con el
+  formulario vacío: salían ocho errores y esos tres no. Arreglado.
+- La ruta autenticada devolvía **404 para un archivo que sí existía**: resolvía el nombre sin su
+  carpeta. Lo encontró la prueba, no la lectura del código.
+
+**Verificado de punta a punta**
+- Rellenado el formulario entero en el navegador y enviado: **201 Created**.
+- En PostgreSQL, las cuatro tablas: la ficha con sus 17 campos (incluida la edad calculada, 29,
+  a partir del 7/9/1997), un título en `postulante_educacion`, «Inglés» en `postulante_idiomas`
+  y el puesto en `postulante_experiencia`.
+- Comprobada la validación: con el formulario vacío salen los once errores y no deja pasar.
+- Dos pruebas que **ya existían** se pusieron en rojo al guardar el CV antes de leerlo: una
+  esperaba 413 por tamaño y recibía el 400 del guardado, y otra mandaba texto plano con nombre
+  `.docx`, que el guardado rechaza por los bytes. No se tocaron: se corrigió el orden —leer
+  primero, guardar después—, que además evita dejar copias de archivos que el lector rechaza.
+  Hay una prueba nueva que fija ese orden.
+- 184 pruebas en verde (eran 173). Las 11 nuevas cubren la subida de foto y CV, el rechazo por
+  los bytes y no por la extensión, que el nombre lo pone el servidor, que sin sesión no se
+  descarga, y que `/media` no sirve la carpeta privada ni con `..`.
+
+**Y al final, un malentendido mío y lo que de verdad sobraba**
+
+El dueño dijo «quita la parte de cargar el CV porque eso ya lo hace el robot» y entendí que
+sobraba el paso 1. Lo quité, y estaba al revés: lo que sobraba era el **adjunto del paso 3**. El
+flujo que él quiere es el que ya estaba —subes el CV en el paso 1, el robot lo lee, y la persona
+completa a mano lo que no se pudo sacar—; pedir otra vez el archivo al final es pedir lo mismo
+dos veces. Revertido y quitado lo correcto.
+
+De paso se fue `POST /api/v1/public/cv`, que solo existía para ese adjunto: una ruta abierta que
+escribe en disco y que ya no llama nadie es superficie de ataque y nada más. Las dos pruebas que
+la usaban para comprobar el guardado del CV ahora llaman al servicio directamente, porque
+`/leer-cv` valida por extensión antes y por ahí no se puede ejercitar la comprobación de los
+bytes.
+
+El paso 2 enseña ahora el nombre del CV leído. No es decoración: `nombreDelCv` se guardaba y,
+sin el bloque del paso 3, ya no lo miraba nadie.
+
+**Comprobado contra la aplicación levantada**, no solo con pruebas: `/leer-cv` con un PDF
+devuelve los campos leídos **y** `cv_documento_url`, el archivo aparece en el volumen, pedirlo
+sin sesión da **401** y por la ruta pública **404**.
+
+**Pendiente / avisos**
+- **El robot de ETL no existe todavía.** Quien rellena hoy es la lectura con Claude; sin clave
+  configurada caen cuatro campos por heurísticas y la pantalla lo avisa. El contrato para el
+  robot es el mapeo nuevo.
+- **Nadie borra los archivos huérfanos**: una foto subida en un formulario abandonado se queda.
+- 🔴 Sigue sin poder borrarse a un candidato a petición (S.5). Con fotos y CV guardados de
+  verdad, esto pesa más que ayer.
+
+---
+
+
+## 2026-10-28 — Sesión 11 · Conectar LinkedIn pegando un token
+
+**Fase:** M1 — integraciones. Tercer camino hacia LinkedIn, el que de verdad desbloquea
+publicar automáticamente desde este entorno.
+
+**Lo que trajo el dueño:** una captura del portal de LinkedIn con la aplicación *ATS FICHAR*
+creada y un token recién generado desde el *Token generator*, con los permisos `email`,
+`openid`, `profile` y `w_member_social`, activo y con dos meses por delante. «Estoy hasta
+aquí»: tenía el token, y la aplicación no tenía dónde ponerlo.
+
+**Por qué importaba el atajo.** La pantalla solo ofrecía el ida y vuelta de OAuth, que exige
+Client Secret y una Redirect URI registrada que coincida carácter por carácter. Ayer quedó
+escrito que LinkedIn documenta esa URL **por HTTPS**, y este entorno todavía vive en
+`localhost`: el camino de ayer podía no llegar a funcionar hasta tener el dominio. Un token ya
+emitido salta las dos cosas.
+
+**Lo construido**
+- `POST /configuracion/linkedin/token`: recibe el token, le pregunta a LinkedIn de quién es
+  (`/v2/userinfo`) y **solo entonces** lo guarda cifrado. Un token mal copiado o sin permisos
+  se rechaza al pegarlo, no al intentar publicar una vacante.
+- El schema le quita espacios y saltos de línea: el generador lo muestra partido en varias
+  líneas y al copiarlo se cuelan, y LinkedIn luego lo rechaza sin decir por qué.
+- `_guardar_token` sale como función común: los dos caminos (canje de OAuth y token pegado)
+  acaban con los mismos datos, así que qué se guarda y cómo se cifra no depende de por dónde
+  se entró.
+- En Configuración, el atajo va **antes** que los tres campos de la aplicación, con los
+  permisos que hay que marcar al generarlo.
+
+**Un fallo real que destapó el cambio**
+`publicar-linkedin` miraba `esta_configurado(db)` —que pregunta por Client ID, Secret y
+Redirect URI— **antes** de mirar si había token. Con un token pegado y sin esas credenciales,
+que es justo el caso de hoy, habría **simulado** la publicación teniendo con qué publicarla de
+verdad. Ahora manda el token; el modo simulado queda solo para cuando no hay ni token ni
+credenciales, y un token caducado avisa en vez de simular —simular ahí sería mentir dos veces:
+ni publicó, ni está desconectado—.
+
+**Un enredo propio, y lo que enseñó**
+La primera versión de la prueba del token caducado usaba la fixture `db_limpia` para envejecer
+la fila. Se quedó colgada: esa fixture mantiene abierta una transacción que ha borrado `roles`,
+y el `INSERT` del cliente en `tokens_linkedin` esperaba el bloqueo. Se vio mirando
+`pg_stat_activity` —`idle in transaction` contra `active/Lock`—, no adivinando. La prueba usa
+ahora una sesión propia y corta.
+
+**Pendiente / avisos**
+- 🔴 El token del dueño **viajó en una captura de pantalla** dentro de esta conversación.
+  Es una credencial activa durante dos meses: conviene revocarla en el portal y generar otra
+  para usarla de verdad.
+- Publicar de verdad desde aquí **todavía no se ha hecho**: haría un post real en el muro de
+  quien conecte. Lo comprobado es todo lo anterior a la llamada a LinkedIn.
+- Sigue en pie que `/compartir/<slug>` tiene que ser alcanzable desde internet para que la
+  tarjeta se vea.
+
+---
+
+
+## 2026-10-26 — Sesión 10 · Publicar en LinkedIn sin OAuth
+
+**Fase:** M1 — integraciones. No cierra ninguna fase del mapa: es el camino alternativo al
+que ya existía (OAuth), pedido por el dueño porque no quiere depender de una aplicación
+aprobada por LinkedIn.
+
+**El encargo, literal:** «al conectarlo pueda ser capaz de disparar abrir el enlace del
+linkedin conectado para presionar publicar desde la plataforma solo trasladamos la
+información de mi sistema a linkedin».
+
+**Lo primero fue medir, no suponer.** Pedí el portal con el agente del rastreador:
+
+```
+curl -A "LinkedInBot/1.0" http://localhost:3000/postular/<slug>
+```
+
+Devuelve `<title>ANAI | Selección de personal</title>`, un `<div id="root"></div>` vacío y
+**cero** etiquetas Open Graph. Era de esperar —la aplicación es una SPA y el rastreador de
+LinkedIn no ejecuta JavaScript—, pero sin esa comprobación habría sido una corazonada. Con
+ese enlace, LinkedIn habría dibujado una tarjeta sin puesto, sin descripción y sin imagen.
+
+**Lo construido**
+- `GET /compartir/{slug}`: una página que **genera el servidor**, con las etiquetas Open
+  Graph rellenas desde la base. Va montada fuera de `/api/v1` porque la URL se reparte a
+  personas. Quien la abra no se queda ahí: `meta refresh` + `location.replace` lo llevan al
+  formulario de verdad, así que no es una página paralela que haya que mantener.
+- `POST /vacantes/{id}/compartir-linkedin`: arma el texto, devuelve el enlace a compartir y
+  la URL del compositor (`share-offsite`).
+- En la tarjeta de la vacante, el botón copia el texto al portapapeles y abre el compositor.
+  La pestaña se abre **antes** del `await`: abrirla después la mata el bloqueador de
+  ventanas emergentes.
+
+**Tres decisiones que no son obvias**
+- **`compartido` no es `publicado`.** Es el estado nuevo del post. El sistema entrega el
+  contenido, pero quien pulsa Publicar es la persona y eso no se puede comprobar desde
+  aquí. Marcarlo como publicado sería afirmar algo que no se sabe; la pantalla lo dice.
+- **Sin imagen propia no se anuncia ninguna.** El escudo de la ANAI es un SVG y LinkedIn no
+  los dibuja en las tarjetas: saldría un hueco. Sin `og:image` muestra una tarjeta de solo
+  texto, que se ve bien.
+- **No se montó SSR.** Cambiar la arquitectura entera del frontend por cuatro etiquetas no
+  se sostiene cuando una ruta del backend lo resuelve.
+
+**Verificado de punta a punta, no solo con pruebas**
+- 164 pruebas en verde (eran 152). Las 12 nuevas cubren las etiquetas, la redirección, el
+  escapado de comillas en el asunto, y que un borrador, una vacante interna y una vencida
+  devuelvan 404 —también al rastreador: interna significa interna.
+- En el navegador, con la aplicación levantada: el botón copia el texto, el navegador
+  registra el intento de abrir `www.linkedin.com`, y aparece el aviso «Termina de publicar
+  en LinkedIn» con el texto y el recordatorio de que queda como enviado, no publicado.
+- En PostgreSQL, `post_estado` pasó a `compartido`.
+- `curl` con el agente de LinkedIn contra `/compartir/<slug>` devuelve el título, la
+  descripción con contrato, sueldo y horario, y el enlace canónico al formulario.
+- `black`, `flake8` y `tsc --noEmit` limpios.
+
+**Un hueco que se vio al verificar, y se tapó**
+En producción nginx reenvía `/compartir/` al backend, pero **en desarrollo Vite no**: el
+enlace que se reparte habría devuelto el `index.html` vacío de la SPA justo donde se quiere
+probar el flujo. Añadido el proxy en `vite.config.ts` (`VITE_PROXY_TARGET`) y comprobado que
+el puerto 3000 ya devuelve las etiquetas.
+
+**La pantalla de Configuración engañaba, y eso era el verdadero fallo**
+
+El dueño dijo «la conexión sigue sin funcionar». Mirada la base: la tabla `configuracion`
+está **vacía**, así que no es que falle, es que no hay nada que conectar. Pero la pantalla
+mostraba «Sin conectar» y un botón apagado, que se lee como una aplicación rota.
+
+La tarjeta de LinkedIn ahora dice lo que pasa: que **conectar es opcional**, que el botón de
+la tarjeta de la vacante no necesita nada, y que esto otro —publicar solo— exige una
+aplicación propia en LinkedIn porque no hay otra vía. El campo Redirect URI ofrece la URL
+exacta de este sitio con un clic: tiene que coincidir carácter por carácter con la
+registrada en LinkedIn, y es donde se rompen estas conexiones.
+
+No se tocó el flujo OAuth: está entero y sin estrenar, a la espera de esa aplicación.
+
+**Pendiente / avisos**
+- La guía de despliegue (`docs/DESPLIEGUE.md`) es la de **Google Cloud** desde el 20 de
+  octubre; la entrada de la sesión 9 todavía habla de Render, que quedó como alternativa al
+  final del documento. El dueño aún no ha creado la máquina.
+- El camino con OAuth sigue existiendo y sin estrenar: necesita la aplicación de LinkedIn
+  del dueño. Este camino no la necesita.
+- Para que LinkedIn pueda leer la tarjeta, `/compartir/<slug>` tiene que ser **alcanzable
+  desde internet**. Mientras todo esté en `localhost`, la tarjeta saldrá vacía por mucho que
+  la página sea correcta.
+
+---
+
+
+## 2026-10-20 — Sesión 9 · Preparar el despliegue: etapa 2 cerrada
+
+**Fases:** **S.2, S.3 y S.4 cerradas** — con S.1, la etapa 2 entera. **T.6** hecha. **D.1**
+preparada, a falta de que el dueño cree la cuenta.
+
+**El encargo:** un entorno accesible por URL para que otra persona siga el avance. No es
+producción real, va a tener solo datos inventados, y se actualizará constantemente.
+
+**Lo que había, mirado antes de tocar nada**
+- El seed creaba `admin@atsdemo.com` / `Demo1234!` **en cada arranque**. Esa contraseña está
+  en este repositorio público: con una URL en internet, cualquiera entraba como super admin.
+- El frontend corría `npm run dev` —el servidor de Vite— y el backend con `--reload`.
+- `/leer-cv` no tenía límite **y llama a la API de Claude**: en internet es una factura
+  abierta a quien escriba un bucle. Eso no estaba en el mapa de fases.
+
+**S.2 — el seed**
+- `ENTORNO` nuevo. En producción no se crean ni cuentas ni cargos de demo; sí los roles y
+  los catálogos de educación, que no son "ejemplos" sino parte del sistema.
+- El primer administrador sale de `ADMIN_INICIAL_EMAIL`/`PASSWORD`, y **solo si la base no
+  tiene ningún usuario**. Sin esas variables no se crea nadie y se dice en el log: un sistema
+  sin administrador es un problema visible; uno con un administrador adivinable, no.
+- De paso se corrige lo del día 14: el seed ya no comprueba correo por correo, así que
+  **no recrea una cuenta que alguien renombró**.
+
+**S.4 — límite de peticiones**
+- Por IP, leyendo `X-Forwarded-For` (sin eso, detrás de un proxy todas las peticiones
+  parecen venir del mismo sitio). 5 lecturas de CV cada 10 minutos, 10 postulaciones, 60
+  consultas por minuto.
+- En memoria del proceso a propósito, con la contrapartida asumida y escrita: se olvida al
+  reiniciar y no sirve con varias réplicas.
+
+**Imágenes de producción**
+- Backend en dos etapas, sin el compilador en la imagen final y con usuario sin
+  privilegios: de **942 MB a 480**.
+- Frontend compilado con Vite y servido por nginx, **haciendo de proxy** hacia el backend.
+  Así la API no se expone a internet, no hay CORS, y la imagen no necesita saber en qué
+  dominio vivirá: Vite incrusta las variables al compilar, no al arrancar.
+
+**Verificado con un ensayo completo en local** — las dos imágenes de producción contra una
+base vacía, con `ENTORNO=produccion`:
+- En la base solo existe el admin de las variables, y **cero** cargos de demo.
+- `admin@atsdemo.com` / `Demo1234!` devuelve **401**. Es la prueba de que S.2 está cerrada.
+- A través del proxy: la página carga, `/cargos` devuelve 200 (no el 404 de nginx), el
+  login del admin inicial da 200, y el límite corta a la sexta lectura de CV
+  (`400 400 400 400 400 429 429`), lo que confirma que la IP real llega al backend.
+- 152 pruebas en verde (eran 137). Las 15 nuevas cubren el seed en los dos entornos, el
+  CORS, y el límite con su cabecera `Retry-After`.
+
+**Dos cosas que aparecieron al construir, y que nadie había visto**
+- **No existía `package-lock.json`.** Cada build resolvía versiones distintas: dos
+  despliegues del mismo commit podían no ser iguales. Generado y versionado.
+- **El build de producción nunca se había ejecutado** (fase T.6). Fallaba por `@types/node`
+  ausente: `vite.config.ts` importa `node:url` y `npm run dev` no pasa por `tsc`.
+
+**Un error propio**
+- Escribí el `render.yaml` dando por hechas dos cosas de Render que no había comprobado: que
+  las variables llegan como argumentos de construcción, y que `property: host` trae el
+  esquema. En vez de adivinar, cambié el diseño a que nginx haga de proxy, que elimina las
+  dos preguntas y además quita el CORS. Ese camino sí lo pude ensayar entero en local.
+
+**Pendiente / avisos**
+- 🔴 **Sin copias de seguridad y sin poder borrar a un candidato** (S.5). Acordado, porque
+  solo habrá datos inventados. El día que entren personas reales, eso cambia.
+- El plan gratuito de Render **apaga los servicios** tras un rato sin uso y **su base
+  caduca a los 90 días**. Está escrito en la guía; si molesta, Railway no se apaga.
+- Si Render regenera `SECRET_KEY`, hay que volver a introducir las credenciales de
+  Configuración: de ella se deriva su cifrado.
+
+---
+
+## 2026-10-16 — Sesión 8 · Usuarios, roles y permisos; pestañas en Cargos
+
+**Fases:** M7 (usuarios y roles) muy ampliado. **S.2 sigue sin empezar**, y hoy dejó de ser
+teórica (ver los avisos).
+
+**Usuarios y roles: de media pantalla a módulo completo**
+- Antes solo se podía listar usuarios, cambiarles el rol y activarlos. Ahora se **crean,
+  editan, se les restablece la contraseña** y se les asignan permisos. De roles no había
+  nada: eran tres nombres sembrados en `seed.py`.
+- **Eliminar es desactivar.** Quien publicó una vacante o evaluó a un candidato es el autor
+  de esos registros; borrarlo abriría huecos en el historial de un proceso de selección que
+  luego hay que poder reconstruir. El aviso lo explica, que es la pregunta que se hace
+  cualquiera al no encontrar el botón.
+- Tres accidentes que el código impide, todos la misma variante de quedarse fuera del propio
+  sistema: desactivarse a uno mismo, quitarse el propio super admin, y dejar la aplicación
+  **sin ningún super admin activo**.
+
+**Permisos: del código a la base**
+- Estaban escritos a mano en cada endpoint (`require_roles("...")` × 33), así que no se
+  podían administrar. Ahora son **27 entradas sacadas del menú lateral**: un permiso por
+  cada acción real de cada pantalla. No se inventaron permisos para cosas que la aplicación
+  todavía no hace.
+- Dos niveles, como pidió el dueño: **el rol da la plantilla y cada usuario admite
+  excepciones** en ambos sentidos. Sin el nivel de usuario no se podría recortar un permiso a
+  una persona sin sacarla de su rol.
+- `require_permission` **convive** con `require_roles`: ninguno de los 33 endpoints queda sin
+  protección mientras se migran.
+- Los tres roles iniciales quedan marcados `es_sistema` y protegidos contra renombrado y
+  borrado: el código todavía los nombra, y renombrar `reclutador` dejaría 21 endpoints sin
+  dejar pasar a nadie **y sin error visible**.
+
+**Cargos**
+- Las secciones 5 y 6 ganan **botones por clasificación** que despliegan lo que ya piden los
+  cargos de esa misma clasificación. Dentro de cada grupo, primero las más usadas; la
+  clasificación del cargo en edición va primera. Los grupos vacíos no se devuelven.
+- Activos e inactivos **separados en pestañas**, igual que en Usuarios.
+- El panel de categorías se cierra solo 2 s después de salir el cursor; si vuelve, se cancela.
+
+**Verificado**
+- **137 pruebas en verde** (eran 112).
+- Contra PostgreSQL: el rol creado desde la pantalla guardó los 4 permisos marcados con el
+  nombre normalizado a identificador; quitarle un permiso a un reclutador guardó **una sola
+  fila** de excepción, no diecinueve, y sus efectivos pasaron de 19 a 18 con el resto intacto.
+- En Cargos, ida y vuelta completa sobre un cargo sin vacantes: desactivar movió los
+  contadores de 3/2 a 2/3 y reactivar los devolvió. Los cinco cargos quedaron como estaban.
+- El cierre automático, con los dos controles: sigue abierto a 1,2 s y cerrado a 2,6 s; y si
+  el cursor vuelve al segundo, sigue abierto 2,5 s después.
+- Datos de prueba creados y borrados en cada caso.
+
+**Un fallo encontrado por las pruebas**
+- La migración marca `es_sistema` en los roles **que ya existen**, pero en una instalación
+  nueva los crea el seed después, con el valor por defecto en falso. **Una instalación desde
+  cero habría tenido los tres roles base desprotegidos.** Corregido en `seed.py`.
+
+**Errores propios que conviene recordar**
+- Dos mediciones malas seguidas al probar el cierre automático: un `mouseleave` sintético no
+  dispara el handler de React, y después apunté el ratón a y=638 cuando el contenedor estaba
+  en y=497..527 —el frame de la captura va a 0,625 del viewport—, así que nunca llegué a
+  entrar. Las dos veces "no cerraba" porque nunca le dije que saliera: **fallaba la prueba,
+  no el código.**
+- Volví a romper archivos con sustituciones multilínea de `perl` (`schemas/configuracion.py`,
+  por el `|` de los tipos `str | None`). Es la tercera sesión seguida. **Para ediciones
+  estructurales, edición exacta.**
+
+**Pendiente / avisos**
+- 🔴 **S.2 dejó de ser teórica.** El dueño renombró `admin@atsdemo.com` y el seed **volvió a
+  crearlo** en el siguiente arranque, con `Demo1234!`, que está publicada en el repo. Ahora
+  hay 5 usuarios, dos de ellos cuentas de demo recreadas.
+- 🔴 **El menú lateral todavía se oculta por rol, no por permisos.** Hasta conectarlo a
+  `/users/yo/permisos`, lo que se marca en los otros módulos no se nota en la interfaz.
+- La barra superior guarda el nombre de quien entró y no se refresca al editarse a uno mismo.
+- Hay dos cargos llamados "Analista de Reclutamiento" (uno activo, otro inactivo). No es un
+  fallo —el nombre sale de un catálogo— pero confunde en las pestañas.
+
+---
+
+## 2026-10-14 — Sesión 7 · LinkedIn conectable, marca ANAI y perfil del postulante
+
+> Anotada el 16 de octubre: la sesión se cerró sin documentar. Se reconstruye desde
+> `git log` y el código, no de memoria.
+
+**Hecho**
+- **El flujo de OAuth de LinkedIn estaba a medias** y apareció al ir a explicar cómo conectar
+  la app: `canjear_codigo()` existía pero no lo llamaba nadie, no había página de retorno, y
+  el `state` se generaba sin comprobarse. Se llegaba a la pantalla de permisos y de ahí a un
+  404. Cerrado: página de retorno en el frontend, endpoint que canjea el código y guarda el
+  token cifrado, y `state` firmado (JWT de 10 minutos) en vez de guardado en una tabla.
+- **Menú lateral con los colores de la institución** (`#003462`), con el escudo pasado a
+  blanco por filtro: es monocromo y sobre azul oscuro habría desaparecido.
+- **Perfil completo del postulante**: de 12 campos a ~40, con educación, idiomas y experiencia
+  en tablas propias. La lectura del CV pasa de expresiones regulares a la **API de Claude**,
+  mandando el PDF tal cual —no el texto aplanado— para que el modelo vea la página.
+
+**Verificado**
+- 112 pruebas en verde (eran 102). El `state` de otra persona se rechaza, el inventado y el
+  caducado también, y el propio sí pasa la comprobación.
+- Contraste del menú medido: 12,6:1 en el título y 10,2:1 en los enlaces.
+
+**Dos fallos encontrados por las pruebas**
+- **El consentimiento de privacidad no se validaba**: con `acepta_privacidad: bool = False`,
+  Pydantic no valida los valores por defecto, así que el validador no llegaba a correr y una
+  postulación sin aceptar nada entraba igual.
+- Un `.docx` o PDF corrupto daba 500 en vez de decir que el archivo está dañado.
+
+---
+
+## 2026-10-12 — Día 6 · Vacantes como publicación, S.1 cerrada y marca ANAI
+
+> Sesión de tarde. Comparte fecha con el día 5: son **dos sesiones del mismo día**, no dos
+> días. El contador de "días trabajados" cuenta sesiones, y se corrigió en `ESTADO.md`.
+
+**Fases:** **S.1 CERRADA** (por fin), M1 ampliado al módulo de Vacantes, y la aplicación
+pasa a llevar la marca de la institución.
+
+**S.1 primero, y esta vez no por disciplina sino por necesidad:** este trabajo guarda el
+secreto de LinkedIn y una contraseña de aplicación de Gmail en la base. Hacerlo con un
+`SECRET_KEY` publicado en GitHub habría sido regalar esos secretos.
+
+- `SECRET_KEY` ya no tiene valor por defecto: si falta, la aplicación **no arranca** y
+  `docker compose` se niega a levantar. Además rechaza los valores de ejemplo publicados.
+- De esa clave se deriva el cifrado (Fernet) de los secretos guardados. Contrapartida
+  explícita: **al rotar la clave hay que volver a introducirlos**.
+- El valor por defecto estaba en tres sitios (`config.py`, `docker-compose.yml`,
+  `.env.example`). Los tres limpios; `.env` real generado y fuera de git.
+
+**La vacante**
+- **El título deja de escribirse**: se elige el cargo y el título se copia de él. Es una
+  copia y no un `join` a propósito: de ahí sale el `slug`, que es la URL pública, y si
+  siguiera al catálogo, renombrar un cargo rompería los enlaces ya repartidos.
+- Tres conceptos que estaban mezclados en una columna ahora son tres: `estado`
+  (borrador/abierta/cerrada), `post_estado` (borrador/programado/publicado/error) y
+  `visibilidad` (pública/interna/mixta). Una vacante puede estar abierta con el post en
+  borrador, o publicada y ya cerrada.
+- Suma remuneración, jornada con entrada y salida, tipo de contrato (catálogo nuevo),
+  campos personalizados, asunto, imagen, programación y destinatarios internos.
+- **Primera subida real de archivos del proyecto** (migración 0006 + volumen `media_data`):
+  se valida el tipo por los bytes y no por la extensión, el tamaño leyendo a trozos, y el
+  nombre lo genera el servidor.
+
+**LinkedIn: lo que se puede y lo que no** (investigado, no supuesto)
+- El servicio anterior llamaba a `/v2/jobPostings`, que exige ser partner de Talent
+  Solutions: **nunca habría funcionado** con credenciales normales.
+- Reescrito a la única vía de autoservicio: productos *Sign In with LinkedIn (OIDC)* y
+  *Share on LinkedIn*, scope `w_member_social` → publica en **el muro del reclutador**.
+- Página de empresa y tablón de empleos siguen exigiendo aprobación de partner.
+- El token dura ~60 días y **no hay refresh token** fuera del programa de partners: la
+  pantalla avisa antes de que caduque y hay que reconectar.
+
+**Verificado**
+- **88 pruebas en verde** (eran 53). La creación de vacantes se centralizó en una fixture,
+  como se hizo con los cargos: cuando cambió aquel contrato el arreglo fue un archivo en
+  vez de cuatro.
+- `SECRET_KEY` con los dos controles: acepta la clave nueva (health 200) y rechaza tanto el
+  valor publicado como el vacío.
+- Migración 0006: conservó la vacante existente y tradujo `activa` → `abierta`.
+- En el navegador: jornada de 8 h con entrada 09:00 da salida 17:00, y al cambiar a 4 h
+  recalcula a 13:00. La etiqueta repetida avisa junto a la fila y deja de avisar al
+  corregirla.
+- En PostgreSQL: la vacante guardó título copiado del cargo, 1250.50, horario y los dos
+  campos adicionales con los acentos intactos.
+- **El secreto guardado desde la pantalla está cifrado en la columna** (`gAAAAA...`) y el
+  valor en claro aparece **0 veces** en la tabla. Las pruebas comprueban eso y no una ida
+  y vuelta, que pasaría igual con el secreto en texto plano.
+- Fuga cero y limpieza: la base quedó en 5 cargos, 1 vacante y 0 filas de configuración.
+
+**Correo: de solo Gmail a cualquier servidor**
+- Gmail era el único camino y no sirve para el correo institucional, que suele tener
+  servidor propio. Ahora se **elige el tipo de conexión**: Gmail/Workspace (servidor y
+  puerto fijos) o servidor propio (servidor, puerto, cifrado, remitente, usuario y clave).
+- Gmail es, por dentro, el caso particular del segundo con los valores ya puestos. Se
+  mantienen separados en pantalla porque lo que hay que pedirle a una persona es muy
+  distinto: una contraseña de aplicación frente a cinco datos de sistemas.
+- El **usuario se pregunta aparte del remitente**: hay servidores donde se entra con
+  `dominio\usuario` o con una cuenta de servicio.
+- Añadido **"Probar conexión"**: se conecta y autentica sin enviar nada. Sin eso, la única
+  forma de descubrir que la configuración estaba mal era mandar una vacante real a una
+  lista de correos de verdad.
+
+**La aplicación pasa a ser de la ANAI**
+- Escudo, nombre y colores de la Academia Naval Almirante Illingworth en lugar de "Sistema
+  ATS", también en el acceso y en las dos pantallas que ve el candidato.
+- **Los colores no se estimaron de una captura**: se leyeron los valores calculados del
+  propio anai.edu.ec. Institucional `#0064b4`, franjas `#003462`, acento `#1ea7fd`, claros
+  `#aad6ff` y `#ebf5ff`. El `#20395f` del escudo sale del propio SVG.
+- El institucional se colocó en `brand-600` a propósito: la interfaz ya usaba `brand-600`
+  para botones y acentos, así que **toda la aplicación cambió de color sin tocar clase por
+  clase**.
+
+**Corregido de esta misma sesión**
+- `Card` no trae padding propio —lo pone quien lo usa— y en las dos vistas nuevas se me
+  pasó: el contenido iba pegado al borde. Arreglado en Vacantes y Configuración, y
+  revisado el resto (el Dashboard lo usaba bien, con `CardHeader`/`CardBody`).
+- La tarjeta de vacante se reordenó: condiciones como etiquetas con icono, punto de color
+  para el estado del post y los botones en una barra inferior propia.
+
+**Verificado (segunda mitad de la sesión)**
+- **97 pruebas en verde** (de 88). Las nuevas cubren que la contraseña SMTP tampoco se
+  guarda en claro ni se devuelve, el puerto fuera de rango, y el tipo y cifrado inválidos.
+- Que **cambiar de tipo no borra las credenciales del otro**: probar el servidor propio y
+  volver a Gmail no puede costar reconfigurar Gmail.
+- Con los dos controles: puerto vacío + elegir SSL propone 465; con `2525` escrito a mano
+  **no lo pisa**. Probar contra un servidor inexistente informa del fallo sin romperse.
+- La marca, **midiendo y no mirando**: el botón principal calcula `#0064b4`, el título
+  `#20395f` y el fondo del acceso el degradado con los tres azules; el escudo carga en las
+  cuatro pantallas.
+
+**Errores propios que conviene recordar**
+- Tres veces seguidas rompí archivos con sustituciones multilínea de `perl`: corrompió
+  `types/index.ts`, `schemas/vacante.py` (dejó un campo obligatorio y tumbó 11 pruebas) y
+  la cabecera de `ESTADO.md`. Las tres se vieron enseguida porque `tsc` y `pytest` corren
+  después de cada cambio. **Para ediciones estructurales, edición exacta, no regex.**
+- Pulsé "Guardar" y "Probar conexión" a la vez y la prueba llegó antes del guardado: la
+  respuesta decía "Gmail" cuando ya había elegido SMTP. No era un fallo del producto sino
+  de cómo lo medí; se repitió la prueba en orden.
+
+**Pendiente / avisos**
+- 🔴 **La fecha programada se guarda pero nada publica solo a esa hora.** Falta el proceso
+  que lo ejecute; hoy hay que pulsar el botón. Está dicho en la propia pantalla.
+- 🔴 El envío interno necesita que configures el correo; sin eso el botón explica qué falta.
+- LinkedIn queda en **modo simulado** hasta que crees la app y pegues las credenciales. El
+  resultado dice "simulado" en vez de fingir que salió a internet.
+- Rotar `SECRET_KEY` obliga a reintroducir los secretos guardados. Es la contrapartida de
+  no tener una segunda clave que administrar.
+- Los correos de demo siguen siendo `@atsdemo.com`: están en las pruebas y en `CLAUDE.md`,
+  y no se ven en la interfaz.
+
+---
+
+## 2026-10-12 — Día 5 · Afinar el formulario de Cargos
+
+**Fase:** M1 otra vez, a petición del dueño. **S.1 sigue sin empezar**: la etapa 2 no se ha tocado.
+
+**Hecho**
+- **Sección 4 admite hasta dos** niveles, títulos y áreas. Cada nivel lleva su propio estado
+  (completa / en curso), así que pasan de cuatro columnas sueltas a tres tablas (migración 0005).
+  El botón de añadir se deshabilita al llegar a dos, y **el engranaje se movió a la cabecera** del
+  campo para que no baje al añadir una fila.
+- Un valor ya elegido deja de ofrecerse en la otra fila: no tiene sentido exigir dos veces el mismo
+  nivel, y la clave primaria de la tabla puente lo rechazaría igualmente.
+- **El Enter ya no crea competencias parecidas.** Antes, con el aviso delante, Enter creaba igual.
+  Ahora bloquea y explica; el botón "Crear" también queda deshabilitado en ese caso.
+- **Checklist en el paso 7**: experiencia en empresas similares, en cargos similares e interna en
+  otros cargos.
+
+**Verificado**
+- **53 pruebas en verde** (eran 48). Nuevas: tope de dos, nivel repetido, estado inválido, checklist
+  y que editar reemplaza la educación en vez de acumularla.
+- En PostgreSQL: dos niveles guardados con SU estado (`Tercer Nivel`/completa y `Maestría`/en_curso)
+  y el checklist con los tres valores correctos.
+- El Enter con los **dos controles**: "Trabajo en equipos" no creó nada (solo sigue existiendo
+  "Trabajo en equipo"), y "Negociacion bajo presion" sí se creó. El bloqueo no rompió la creación.
+- La migración 0005 conservó la educación del cargo que ya la tenía.
+- Fuga cero: 5 cargos antes de la suite, 5 después.
+
+**También hoy — el modal deja de perder trabajo**
+- **La cabecera del modal ya no se va con el scroll.** El panel pasa a ser una columna: la
+  cabecera (título y X) queda fuera del área que hace scroll, en vez de desplazarse con el
+  contenido. En un formulario de siete secciones la salida estaba desapareciendo de la vista.
+- **Cerrar el formulario de cargo pregunta antes**, tanto con la X como haciendo clic fuera.
+  Antes, un clic fuera por accidente borraba las siete secciones sin aviso.
+- La pregunta es **opcional por diseño** (prop `confirmarCierre`): un modal que ya es él mismo
+  una confirmación —desactivar un cargo, gestionar un catálogo— no debe pedir confirmación para
+  cerrarse. Solo la activa el formulario de cargo.
+
+- **El modal se monta en `document.body`**, con un portal, en vez de donde se escribe. Vivía dentro
+  de `<main>`, un contenedor con scroll: bastaba que un ancestro usara `transform` o `filter` para
+  que dejara de cubrir la pantalla y quedara recortado dentro de la columna. Colgándolo del body
+  eso ya no puede pasar.
+- El fondo oscuro se quitó y se volvió a poner a petición del dueño: con tanto texto detrás, el
+  formulario no se distinguía. Se queda en `bg-slate-900/40`.
+
+**Verificado (en el navegador, con los dos controles)**
+- Con el cuerpo scrolleado hasta la sección 7, la cabecera "Nuevo Cargo" y la X seguían en su sitio.
+- El modal cuelga de `<body>` (`parentElement === document.body`, fuera de `<main>`), y
+  `elementFromPoint` sobre el menú lateral, la barra superior, el contenido y la esquina inferior
+  devuelve el modal: **nada de la aplicación queda por encima** en ningún punto de la pantalla.
+- Con el gestor de catálogo abierto encima, las dos capas cuelgan del body y la de arriba es la
+  correcta; cerrarla **no se cuela** al fondo del modal de abajo (que habría abierto la pregunta).
+- Al cerrar no queda ningún nodo suelto en el body.
+- **Control positivo**: la X abre la pregunta y el modal no se cierra; el clic fuera, igual;
+  "Cancelar" vuelve al formulario intacto; "Sí, cerrar" cierra de verdad y no deja la pregunta
+  en pie para la próxima apertura.
+- **Control negativo**: la confirmación de desactivar un cargo sigue cerrándose al primer clic
+  fuera, sin preguntar. El cambio no se desbordó a los demás modales.
+- 5 cargos activos de 5 antes y después de la prueba: abrir y cerrar modales no tocó datos.
+- 53 pruebas en verde y `tsc --noEmit` limpio (el cambio es solo de frontend).
+
+**Pendiente / avisos**
+- 🔴 La etapa 2 (seguridad) sigue entera sin empezar. Ya van dos sesiones seguidas en M1.
+- El bloqueo por parecido usa un umbral de 0,55: dos competencias legítimamente distintas pero
+  parecidas no se pueden crear. Si molesta, hay que subir el umbral o añadir una confirmación.
+- La pregunta de cierre salta **siempre**, aunque no se haya escrito nada. Si estorba, el paso
+  siguiente es comparar el formulario con su estado inicial y preguntar solo si hay cambios.
+- Los modales de Vacantes y Evaluaciones también son formularios y **siguen sin preguntar**:
+  basta añadirles la misma prop cuando se quiera.
+
+---
+
+## 2026-10-02 — Día 4 · Rehacer el módulo de Cargos
+
+**Fases:** T.1 y T.1B cerradas. M1 reconstruido (fuera del mapa original: lo pidió el dueño en caliente).
+
+**Hecho**
+- **El cargo pasa a ser un descriptivo de puesto** con 7 bloques: identificación, misión, actividades,
+  educación formal, formación, habilidades blandas y experiencia.
+- Los valores repetibles salen de **catálogos con CRUD propio** (el engranaje junto a cada selector):
+  nombres de cargo, clasificaciones, niveles de educación, títulos y áreas académicas. Un solo router
+  genérico los sirve a los cinco; añadir los tres últimos fueron tres líneas.
+- **Competencias compartidas entre cargos**, con dos defensas contra duplicados: el nombre normalizado
+  (sin tildes ni mayúsculas) es único, y el buscador sugiere los parecidos con trigramas de PostgreSQL.
+  "Trabajo en equipos" encuentra "Trabajo en equipo" con 0,84 de parecido y avisa antes de crear otro.
+- Actividades con **estrella de favorita**, que sube la actividad al principio; el orden se aplica
+  también al guardar.
+- Se quitaron de las tarjetas los botones *Preguntas* y *Desactivar*. Ahora **el estado es el botón**,
+  con confirmación de Sí/Cancelar, y **la tarjeta entera abre el modal para editar**.
+- 4 migraciones (0002 a 0004) sin perder datos; `black`/`flake8` configurados al ancho real (120).
+
+**Verificado**
+- **48 pruebas en verde** (eran 19 escritas y sin correr el día 1).
+- Cada cambio comprobado **en PostgreSQL**, no en pantalla: orden de favoritas, competencias con su
+  exigencia, educación, experiencia, y que editar no duplica ni el cargo ni sus competencias.
+- Activar/desactivar con **los dos controles**: Cancelar no cambia nada; Sí sí.
+- Fuga cero: 4 cargos en desarrollo antes de la suite, 4 después.
+
+**Corregido de días anteriores**
+- Un `as const` sobre un ternario en `VacantesView.tsx` que era TypeScript inválido y venía del commit
+  inicial: bloqueaba la verificación de tipos.
+- `CLAUDE.md` documentaba `black app/`, que sin configuración habría reformateado 35 archivos de golpe.
+- La base de pruebas se construía con `create_all` (desde los modelos), así que lo que vive solo en una
+  migración —como la extensión `pg_trgm`— no existía al probar. Ahora aplica las migraciones reales.
+
+**Errores propios que conviene recordar**
+- Al borrar un bloque con PowerShell leí sin especificar codificación y destrocé todos los acentos del
+  archivo; al repararlo me precipité con un reemplazo de bytes a ciegas y lo empeoré. Es la trampa que
+  documenta la skill `testing-forense-maximo`, escrita dos días antes. **Leer siempre con `-Encoding`.**
+- Una comprobación de fuga cero dio un resultado vacío por comparar cadenas con espacios finales en vez
+  de números. El instrumento mentía, no el sistema.
+
+**Pendiente / avisos**
+- 🔴 La etapa 2 (seguridad) sigue entera abierta: el sistema no puede tocar internet.
+- 🔴 **Ya no hay forma de crear preguntas filtro** desde la aplicación (fase M1.5). El portal del
+  candidato solo verá las que creó el seed.
+- Las listas de niveles y áreas se sembraron de memoria: conviene contrastarlas con la fuente oficial.
+
+---
+
 ## 2026-10-01 — Día 3 · Organizar el trabajo
 
 **Fase:** ninguna (trabajo de organización)
