@@ -119,20 +119,6 @@ async def subir_foto(file: UploadFile = File(...)) -> ArchivoSubido:
     return ArchivoSubido(url=await almacenamiento_service.guardar_foto_de_candidato(file))
 
 
-@router.post(
-    "/cv",
-    response_model=ArchivoSubido,
-    dependencies=[Depends(limitar("subir_archivo"))],
-)
-async def subir_cv(file: UploadFile = File(...)) -> ArchivoSubido:
-    """Guarda el CV sin leerlo.
-
-    Para quien adjunta el currículum al final sin haber usado la importación, o lo
-    cambia por otro: leerlo otra vez costaría una llamada de pago para nada.
-    """
-    return ArchivoSubido(url=await almacenamiento_service.guardar_cv(file))
-
-
 def _nivel_mas_alto(educacion: list) -> str | None:
     """El nivel de estudios más alto de la lista, para el filtro de contactos.
 

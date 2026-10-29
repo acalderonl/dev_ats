@@ -60,8 +60,6 @@ export const publicService = {
   /** Guarda el CV y lo lee: una sola subida, porque la lectura cuesta por llamada. */
   leerCv: (file: File) => apiUpload<CvExtraido>('/public/leer-cv', file),
   subirFoto: (file: File) => apiUpload<{ url: string }>('/public/foto', file),
-  /** Guarda el CV sin leerlo: para quien lo adjunta al final o lo cambia. */
-  subirCv: (file: File) => apiUpload<{ url: string }>('/public/cv', file),
   postular: (slug: string, payload: PostularPayload) =>
     apiPost<Postulante>(`/public/vacantes/${slug}/postular`, payload),
 }

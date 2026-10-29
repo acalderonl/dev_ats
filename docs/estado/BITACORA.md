@@ -72,6 +72,27 @@ sesión, y la ruta pública **se niega a servir esa carpeta**. Hay una prueba qu
   los bytes y no por la extensión, que el nombre lo pone el servidor, que sin sesión no se
   descarga, y que `/media` no sirve la carpeta privada ni con `..`.
 
+**Y al final, un malentendido mío y lo que de verdad sobraba**
+
+El dueño dijo «quita la parte de cargar el CV porque eso ya lo hace el robot» y entendí que
+sobraba el paso 1. Lo quité, y estaba al revés: lo que sobraba era el **adjunto del paso 3**. El
+flujo que él quiere es el que ya estaba —subes el CV en el paso 1, el robot lo lee, y la persona
+completa a mano lo que no se pudo sacar—; pedir otra vez el archivo al final es pedir lo mismo
+dos veces. Revertido y quitado lo correcto.
+
+De paso se fue `POST /api/v1/public/cv`, que solo existía para ese adjunto: una ruta abierta que
+escribe en disco y que ya no llama nadie es superficie de ataque y nada más. Las dos pruebas que
+la usaban para comprobar el guardado del CV ahora llaman al servicio directamente, porque
+`/leer-cv` valida por extensión antes y por ahí no se puede ejercitar la comprobación de los
+bytes.
+
+El paso 2 enseña ahora el nombre del CV leído. No es decoración: `nombreDelCv` se guardaba y,
+sin el bloque del paso 3, ya no lo miraba nadie.
+
+**Comprobado contra la aplicación levantada**, no solo con pruebas: `/leer-cv` con un PDF
+devuelve los campos leídos **y** `cv_documento_url`, el archivo aparece en el volumen, pedirlo
+sin sesión da **401** y por la ruta pública **404**.
+
 **Pendiente / avisos**
 - **El robot de ETL no existe todavía.** Quien rellena hoy es la lectura con Claude; sin clave
   configurada caen cuatro campos por heurísticas y la pantalla lo avisa. El contrato para el

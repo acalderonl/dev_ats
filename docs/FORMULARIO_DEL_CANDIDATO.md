@@ -15,9 +15,14 @@ también **el contrato del robot de ETL**: lo que extraiga tiene que caber en es
 |---|---|---|
 | 1 | Importa tu CV | Sube el archivo. Se **guarda** y se lee; lo leído rellena los pasos 2 y 3 |
 | 2 | Datos personales | Identidad y contacto. Todo obligatorio |
-| 3 | Información adicional | Educación, idiomas, experiencia, redes, adjunto y expectativas |
+| 3 | Información adicional | Educación, idiomas, experiencia, redes y expectativas |
 
 Se puede saltar el paso 1 y escribirlo todo a mano.
+
+**El CV se sube una sola vez, en el paso 1.** Ese archivo es el que queda guardado y el que
+lee el robot; lo que la extracción no saque, lo completa la persona en los pasos 2 y 3. No hay
+un segundo adjunto al final: sería pedir el mismo archivo dos veces. El paso 2 enseña el nombre
+del que se leyó, para que se vea cuál quedó.
 
 ## Paso 2 · Datos personales → tabla `postulantes`
 
@@ -70,7 +75,7 @@ Más, en `postulantes`:
 |---|---|---|
 | LinkedIn | `linkedin_url` | |
 | Otras redes | `otras_redes` (JSONB) | `[{red, url}]`. Lista abierta: no merece una tabla |
-| Currículum adjunto | `cv_documento_url` | Máx. 15 MB; PDF, DOCX, JPG o PNG |
+| (no se pide) | `cv_documento_url` | El archivo del paso 1. **No hay un segundo adjunto**: el CV ya se subió ahí y volver a pedirlo sería pedir lo mismo dos veces |
 | Expectativas personales | `expectativas` | |
 | Acepto la política | `acepto_privacidad_en` | Se guarda **cuándo**, no solo que sí: sin la fecha no se puede demostrar qué versión aceptó |
 | (interno) | `origen_datos` | `cv` si lo rellenó la lectura, `manual` si lo escribió la persona |

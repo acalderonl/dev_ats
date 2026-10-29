@@ -5,9 +5,15 @@ sin autenticación porque la imagen de un post tiene que poder verla LinkedIn. U
 nombre de archivo difícil de adivinar no es un control de acceso.
 """
 
+import asyncio
+import io
+
 import pytest
+from fastapi import HTTPException, UploadFile
 
 from app.core.config import get_settings
+from app.services import almacenamiento_service
+
 
 # Cabeceras reales: el servidor mira los bytes, no la extensión que diga el cliente.
 UN_PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
@@ -43,19 +49,25 @@ def test_una_foto_que_no_es_imagen_se_rechaza(client):
     assert respuesta.status_code == 400
 
 
-def test_el_cv_se_guarda(client):
-    respuesta = _subir(client, "cv", "hoja-de-vida.pdf", UN_PDF)
+def test_el_cv_se_guarda():
+    """Se prueba el servicio directamente: ya no hay ruta que solo guarde el CV.
 
-    assert respuesta.status_code == 200
-    assert respuesta.json()["url"].endswith(".pdf")
+    La guarda `/leer-cv`, que antes de llegar aquí valida por extensión, así que por
+    ahí no se puede ejercitar esta comprobación de los bytes.
+    """
+    url = asyncio.run(almacenamiento_service.guardar_cv(UploadFile(file=io.BytesIO(UN_PDF), filename="hoja.pdf")))
+
+    assert url.startswith("/api/v1/archivos/postulantes/")
+    assert url.endswith(".pdf")
 
 
-def test_el_doc_binario_antiguo_no_se_acepta(client):
+def test_el_doc_binario_antiguo_no_se_acepta():
     """El lector de CV tampoco lo soporta: aceptarlo sería prometer algo a medias."""
-    respuesta = _subir(client, "cv", "hoja.doc", UN_DOC_ANTIGUO)
+    with pytest.raises(HTTPException) as fallo:
+        asyncio.run(almacenamiento_service.guardar_cv(UploadFile(file=io.BytesIO(UN_DOC_ANTIGUO), filename="x.doc")))
 
-    assert respuesta.status_code == 400
-    assert "PDF" in respuesta.json()["detail"]
+    assert fallo.value.status_code == 400
+    assert "PDF" in fallo.value.detail
 
 
 def test_la_extension_la_pone_el_servidor(client):
@@ -71,18 +83,18 @@ def test_la_extension_la_pone_el_servidor(client):
 
 
 def test_sin_sesion_no_se_descarga_el_cv(client):
-    url = _subir(client, "cv", "hoja.pdf", UN_PDF).json()["url"]
+    url = _subir(client, "foto", "yo.png", UN_PNG).json()["url"]
 
     assert client.get(url).status_code == 401
 
 
 def test_con_sesion_si_se_descarga(client, reclutador_headers):
-    url = _subir(client, "cv", "hoja.pdf", UN_PDF).json()["url"]
+    url = _subir(client, "foto", "yo.png", UN_PNG).json()["url"]
 
     respuesta = client.get(url, headers=reclutador_headers)
 
     assert respuesta.status_code == 200
-    assert respuesta.content == UN_PDF
+    assert respuesta.content == UN_PNG
 
 
 def test_la_ruta_publica_de_medios_no_sirve_el_cv(client):
@@ -92,7 +104,7 @@ def test_la_ruta_publica_de_medios_no_sirve_el_cv(client):
     `postulantes/<archivo>`, la carpeta privada no sería privada: bastaría con saber
     —o filtrar— el nombre.
     """
-    url = _subir(client, "cv", "hoja.pdf", UN_PDF).json()["url"]
+    url = _subir(client, "foto", "yo.png", UN_PNG).json()["url"]
     nombre = url.rsplit("/", 1)[1]
 
     assert client.get(f"/api/v1/media/postulantes/{nombre}").status_code == 404

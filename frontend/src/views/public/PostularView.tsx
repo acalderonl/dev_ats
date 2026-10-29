@@ -289,20 +289,6 @@ export function PostularView() {
     }
   }
 
-  async function adjuntarCv(e: React.ChangeEvent<HTMLInputElement>) {
-    const archivo = e.target.files?.[0]
-    if (!archivo) return
-    try {
-      const { url } = await publicService.subirCv(archivo)
-      cambiar('cv_documento_url', url)
-      setNombreDelCv(archivo.name)
-    } catch (err) {
-      toast.error(errorMessage(err))
-    } finally {
-      e.target.value = ''
-    }
-  }
-
   async function subirFoto(e: React.ChangeEvent<HTMLInputElement>) {
     const archivo = e.target.files?.[0]
     if (!archivo) return
@@ -525,6 +511,15 @@ export function PostularView() {
 
           {paso === 'personales' && (
             <div className="space-y-6">
+              {/* Qué CV se leyó. No se vuelve a pedir el archivo: el del paso 1 es el que
+                  queda guardado. Esto es solo para que la persona sepa cuál se usó. */}
+              {nombreDelCv && (
+                <p className="flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">
+                  <FileCheck2 size={16} className="shrink-0" />
+                  Currículum: <strong className="font-medium">{nombreDelCv}</strong>
+                </p>
+              )}
+
               {avisoDeLectura && (
                 <p className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
                   <AlertTriangle size={14} className="mt-0.5 shrink-0" />
@@ -1013,27 +1008,6 @@ export function PostularView() {
                   texto="Añadir otra red social"
                   onClick={() => cambiar('otras_redes', [...ficha.otras_redes, { red: '', url: '' }])}
                 />
-              </Seccion>
-
-              <Seccion titulo="Archivo adjunto" descripcion="Tamaño máximo: 15 MB. Formatos: PDF, DOCX, JPG o PNG.">
-                <div className="flex flex-wrap items-center gap-3">
-                  {ficha.cv_documento_url ? (
-                    <span className="flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">
-                      <FileCheck2 size={16} /> {nombreDelCv ?? 'Currículum adjunto'}
-                    </span>
-                  ) : (
-                    <span className="text-sm text-slate-500">Todavía no has adjuntado tu currículum.</span>
-                  )}
-                  <label className="cursor-pointer rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
-                    <input
-                      type="file"
-                      accept=".pdf,.docx,.jpg,.jpeg,.png"
-                      className="hidden"
-                      onChange={adjuntarCv}
-                    />
-                    {ficha.cv_documento_url ? 'Cambiar archivo' : 'Adjuntar currículum'}
-                  </label>
-                </div>
               </Seccion>
 
               <Seccion titulo="Expectativas personales">
