@@ -57,13 +57,7 @@ export interface PostularPayload {
 
 export const publicService = {
   getVacante: (slug: string) => apiGet<VacantePublica>(`/public/vacantes/${slug}`),
-  /**
-   * Guarda el CV y lo lee: una sola subida, porque la lectura cuesta por llamada.
-   *
-   * **El formulario ya no la usa**: leer el CV para rellenar la ficha es trabajo del
-   * robot de ETL. Se mantiene porque el endpoint sigue vivo y es la misma forma que
-   * necesitará quien lo llame, pero hoy no la llama nadie desde el portal.
-   */
+  /** Guarda el CV y lo lee: una sola subida, porque la lectura cuesta por llamada. */
   leerCv: (file: File) => apiUpload<CvExtraido>('/public/leer-cv', file),
   subirFoto: (file: File) => apiUpload<{ url: string }>('/public/foto', file),
   /** Guarda el CV sin leerlo: para quien lo adjunta al final o lo cambia. */

@@ -9,21 +9,17 @@ también **el contrato del robot de ETL**: lo que extraiga tiene que caber en es
 > El `.docx` no tiene texto: son imágenes. Si hace falta volver a mirarlo, se descomprime
 > (`unzip`) y las capturas están en `word/media/`.
 
-## Las dos pantallas
+## Las tres pantallas
 
 | | Paso | Qué hace |
 |---|---|---|
-| 1 | Datos personales | Identidad y contacto, con la foto. Todo obligatorio |
-| 2 | Información adicional | Educación, idiomas, experiencia, redes, adjunto y expectativas |
+| 1 | Importa tu CV | Sube el archivo. Se **guarda** y se lee; lo leído rellena los pasos 2 y 3 |
+| 2 | Datos personales | Identidad y contacto. Todo obligatorio |
+| 3 | Información adicional | Educación, idiomas, experiencia, redes, adjunto y expectativas |
 
-**El formulario no lee el CV.** Hubo un paso previo que lo subía y rellenaba el resto con lo
-extraído; se quitó porque **eso lo hace el robot de ETL**. Quien llegue al portal escribe sus
-datos, y por eso lo que entra por aquí se guarda siempre con `origen_datos = manual`.
+Se puede saltar el paso 1 y escribirlo todo a mano.
 
-El candidato sí puede **adjuntar** su currículum en el paso 2: eso es conservar el archivo, no
-leerlo, y nadie más lo hace por él.
-
-## Paso 1 · Datos personales → tabla `postulantes`
+## Paso 2 · Datos personales → tabla `postulantes`
 
 | Campo en pantalla | Columna | Control | Oblig. | ¿Lo busca el lector de CV? |
 |---|---|---|---|---|
@@ -45,7 +41,7 @@ leerlo, y nadie más lo hace por él.
 | Fecha de nacimiento | `fecha_nacimiento` | Día + mes + año | **Sí** | Sí |
 | (calculado) | `edad` | — | — | Sale de la fecha, no se pregunta |
 
-## Paso 2 · Información adicional
+## Paso 3 · Información adicional
 
 ### Educación → tabla `postulante_educacion` (una fila por título)
 
@@ -77,7 +73,7 @@ Más, en `postulantes`:
 | Currículum adjunto | `cv_documento_url` | Máx. 15 MB; PDF, DOCX, JPG o PNG |
 | Expectativas personales | `expectativas` | |
 | Acepto la política | `acepto_privacidad_en` | Se guarda **cuándo**, no solo que sí: sin la fecha no se puede demostrar qué versión aceptó |
-| (interno) | `origen_datos` | El formulario manda siempre `manual`. `cv` queda para las fichas que cree el robot de ETL |
+| (interno) | `origen_datos` | `cv` si lo rellenó la lectura, `manual` si lo escribió la persona |
 
 Las preguntas filtro de la vacante, si las hay, se guardan en la postulación
 (`postulaciones.respuestas_filtro`), no en la ficha: son de esa vacante, no de la persona.
@@ -110,15 +106,9 @@ El candidato nunca necesita esa ruta: ve su foto desde el archivo que acaba de e
 
 ## Lo que falta
 
-- **El robot de ETL.** Es quien tiene que leer el CV y rellenar estos campos; el formulario ya
-  no lo intenta. La pieza que hoy existe, `extraccion_cv_service`, manda el archivo a Claude y
-  devuelve exactamente este esquema, y sin clave configurada cae a unas heurísticas que sacan
-  cuatro campos y lo dicen. El robot la sustituirá o se apoyará en ella; el contrato es esta
-  tabla.
-- 🔴 **`POST /api/v1/public/leer-cv` se quedó sin quien la llame** y sigue abierta sin
-  autenticación. Cada llamada cuesta dinero en la API de Claude; el límite por IP la protege,
-  pero ya no hay tráfico legítimo anónimo. Cuando se sepa cómo se identifica el robot, lo
-  sensato es cerrarla con sesión.
+- **El robot de ETL.** Hoy quien rellena es la lectura con Claude (`extraccion_cv_service`), y
+  sin clave configurada cae a unas heurísticas con expresiones regulares que sacan cuatro campos
+  y lo dicen. El robot sustituirá o reforzará esa pieza; el contrato es esta tabla.
 - **Los archivos huérfanos.** Si alguien sube una foto y abandona el formulario, el archivo se
   queda. No estorba, pero nadie lo borra todavía.
 - **Borrar los datos de un candidato a petición** (fase S.5). Hace falta antes de que entren

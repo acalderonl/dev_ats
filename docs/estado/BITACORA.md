@@ -72,26 +72,10 @@ sesión, y la ruta pública **se niega a servir esa carpeta**. Hay una prueba qu
   los bytes y no por la extensión, que el nombre lo pone el servidor, que sin sesión no se
   descarga, y que `/media` no sirve la carpeta privada ni con `..`.
 
-**Y al terminar, el dueño quitó el paso de subir el CV**
-
-«Eso se supone que ya lo hace el robot.» Tiene razón: el paso 1 existía para leer la hoja de
-vida y rellenar el resto, y eso es justo lo que va a hacer el ETL. Fuera. El formulario queda en
-**dos pasos** y la descripción de la vacante, que solo se veía en el paso que se quitó, sube al
-primero.
-
-Lo que **no** se quitó es el adjunto del currículum del último paso: eso es conservar el
-archivo, no leerlo, y nadie más lo hace por el candidato. Y `origen_datos` pasa a mandarse
-siempre como `manual`, porque por el portal ya no entra nada rellenado por una máquina.
-
-🔴 **Queda un cabo suelto que conviene no olvidar**: `POST /api/v1/public/leer-cv` se ha quedado
-sin quien la llame y sigue abierta sin autenticación. Cada llamada cuesta dinero en la API de
-Claude. El límite por IP la protege, pero ya no hay tráfico legítimo anónimo que justificarla
-abierta. No se cerró porque no se sabe todavía cómo se va a identificar el robot.
-
 **Pendiente / avisos**
-- **El robot de ETL no existe todavía**, y desde hoy el portal tampoco lee CVs: quien llegue
-  escribe sus datos. La pieza que sí existe (`extraccion_cv_service`, con las heurísticas de
-  respaldo) sigue ahí esperando a que el robot la use. El contrato es el mapeo nuevo.
+- **El robot de ETL no existe todavía.** Quien rellena hoy es la lectura con Claude; sin clave
+  configurada caen cuatro campos por heurísticas y la pantalla lo avisa. El contrato para el
+  robot es el mapeo nuevo.
 - **Nadie borra los archivos huérfanos**: una foto subida en un formulario abandonado se queda.
 - 🔴 Sigue sin poder borrarse a un candidato a petición (S.5). Con fotos y CV guardados de
   verdad, esto pesa más que ayer.

@@ -46,7 +46,7 @@ Leyenda: 🟢 base funcionando · 🟡 base funcionando con huecos conocidos · 
 | Módulo | Estado | Verificado | Siguiente fase | Etapa |
 |---|---|---|---|---|
 | **M1** Cargos, vacantes e integraciones | 🟢 | Cargos y vacantes: crear, editar y estados, **con pruebas**. Imagen del post y cifrado de secretos comprobados en la base. Compartir en LinkedIn **sin OAuth**: medido que el rastreador no ve la SPA, comprobado que `/compartir` sí le da las etiquetas y que la vacante queda como `compartido`. Conectar LinkedIn pegando un token del portal: **con pruebas**, incluido que un token pegado publica de verdad en vez de simular | M1.6 publicar a la hora programada | 4 |
-| **M2** Portal público y perfil del candidato | 🟢 | Formulario de 2 pasos con el esquema entero (sin lectura de CV: eso es del robot): comprobado en el navegador que se envía y que cae en las cuatro tablas. Foto y CV guardados en carpeta privada, **con pruebas** de que `/media` no los sirve | M2.2 el robot de ETL | 3 |
+| **M2** Portal público y perfil del candidato | 🟢 | Formulario de 3 pasos con el esquema entero: comprobado en el navegador que se envía y que cae en las cuatro tablas. Foto y CV guardados en carpeta privada, **con pruebas** de que `/media` no los sirve | M2.2 el robot de ETL | 3 |
 | **M3** Pipeline de reclutamiento | 🟡 | Reglas de transición, **con pruebas** | M3.3 puntuación de coincidencia | 4 |
 | **M4** Directorio de contactos | 🟡 | Búsqueda, **con pruebas** | M4.1 exportar de verdad | 4 |
 | **M5** Evaluaciones | 🟡 | ❌ nada | M5.1 scorecard consolidado | 4 |

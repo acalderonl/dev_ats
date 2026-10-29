@@ -11,6 +11,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   CheckCircle2,
@@ -24,6 +25,7 @@ import { toast } from 'sonner'
 import { publicService } from '@/services/publicService'
 import { ApiError } from '@/lib/apiClient'
 import type {
+  CvExtraido,
   EducacionItem,
   ExperienciaItem,
   IdiomaItem,
@@ -59,9 +61,10 @@ import {
   Texto,
 } from './campos'
 
-type Paso = 'personales' | 'adicional' | 'listo'
+type Paso = 'cv' | 'personales' | 'adicional' | 'listo'
 
 const PASOS: { clave: Paso; titulo: string }[] = [
+  { clave: 'cv', titulo: 'Importa tu CV' },
   { clave: 'personales', titulo: 'Datos personales' },
   { clave: 'adicional', titulo: 'Información adicional' },
 ]
@@ -177,13 +180,16 @@ export function PostularView() {
   const [noEncontrada, setNoEncontrada] = useState(false)
   const [cargandoVacante, setCargandoVacante] = useState(true)
 
-  const [paso, setPaso] = useState<Paso>('personales')
+  const [paso, setPaso] = useState<Paso>('cv')
+  const [leyendo, setLeyendo] = useState(false)
   const [subiendoFoto, setSubiendoFoto] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [ficha, setFicha] = useState<Ficha>(FICHA_VACIA)
   const [respuestas, setRespuestas] = useState<Record<string, string>>({})
   const [errores, setErrores] = useState<Record<string, string>>({})
+  const [avisoDeLectura, setAvisoDeLectura] = useState<string | null>(null)
   const [nombreDelCv, setNombreDelCv] = useState<string | null>(null)
+  const [origenDatos, setOrigenDatos] = useState<'manual' | 'cv'>('manual')
 
   // La foto se enseña desde el archivo que la persona acaba de elegir: la URL que
   // devuelve el servidor es privada y no se abre sin sesión, y así tampoco se espera
@@ -229,7 +235,59 @@ export function PostularView() {
     setFicha((f) => ({ ...f, [campo]: (f[campo] as unknown[]).filter((_, i) => i !== indice) }))
   }
 
-  // --------------------------------------------- Archivos que sube el candidato
+  // ------------------------------------------------------------- Paso 1: el CV
+
+  function volcarCv(datos: CvExtraido) {
+    const nacimiento = datos.fecha_nacimiento?.split('-') ?? []
+    setFicha((f) => ({
+      ...f,
+      nombres: datos.nombres ?? f.nombres,
+      apellidos: datos.apellidos ?? f.apellidos,
+      email: datos.email ?? f.email,
+      confirmarEmail: datos.email ?? f.confirmarEmail,
+      tipo_documento: datos.tipo_documento ?? f.tipo_documento,
+      cedula: datos.numero_documento ?? f.cedula,
+      telefono_codigo_pais: datos.telefono_codigo_pais ?? f.telefono_codigo_pais,
+      telefono: datos.telefono ?? f.telefono,
+      telefono_tipo: datos.telefono_tipo ?? f.telefono_tipo,
+      genero: datos.genero ?? f.genero,
+      nacionalidad: datos.nacionalidad ?? f.nacionalidad,
+      pais_residencia: datos.pais_residencia ?? f.pais_residencia,
+      provincia: datos.provincia ?? f.provincia,
+      localidad: datos.localidad ?? f.localidad,
+      nacimientoAnio: nacimiento[0] ?? f.nacimientoAnio,
+      nacimientoMes: nacimiento[1] ? String(Number(nacimiento[1])) : f.nacimientoMes,
+      nacimientoDia: nacimiento[2] ? String(Number(nacimiento[2])) : f.nacimientoDia,
+      estudios_secundarios_completos:
+        datos.estudios_secundarios_completos ?? f.estudios_secundarios_completos,
+      linkedin_url: datos.linkedin_url ?? f.linkedin_url,
+      otras_redes: datos.otras_redes.length ? datos.otras_redes : f.otras_redes,
+      educacion: datos.educacion.length ? datos.educacion : f.educacion,
+      idiomas: datos.idiomas.length ? datos.idiomas : f.idiomas,
+      experiencia: datos.experiencia.length ? datos.experiencia : f.experiencia,
+      cv_documento_url: datos.cv_documento_url ?? f.cv_documento_url,
+    }))
+  }
+
+  async function leerCv(e: React.ChangeEvent<HTMLInputElement>) {
+    const archivo = e.target.files?.[0]
+    if (!archivo) return
+    setLeyendo(true)
+    try {
+      const datos = await publicService.leerCv(archivo)
+      volcarCv(datos)
+      setNombreDelCv(archivo.name)
+      setAvisoDeLectura(datos.aviso)
+      setOrigenDatos('cv')
+      toast.success(`Se leyeron ${datos.campos_encontrados} datos. Revísalos antes de enviar.`)
+      setPaso('personales')
+    } catch (err) {
+      toast.error(errorMessage(err))
+    } finally {
+      setLeyendo(false)
+      e.target.value = ''
+    }
+  }
 
   async function adjuntarCv(e: React.ChangeEvent<HTMLInputElement>) {
     const archivo = e.target.files?.[0]
@@ -350,9 +408,7 @@ export function PostularView() {
         experiencia: ficha.experiencia,
         respuestas_filtro: respuestas,
         origen: 'Directo',
-        // Siempre 'manual': lo que llega por aquí lo escribió una persona. El robot de
-        // ETL marcará 'cv' en las fichas que cree él.
-        origen_datos: 'manual',
+        origen_datos: origenDatos,
         acepta_privacidad: true,
       })
       setPaso('listo')
@@ -423,9 +479,58 @@ export function PostularView() {
         )}
 
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+          {paso === 'cv' && (
+            <div className="space-y-4">
+              <h2 className="text-sm font-semibold text-slate-800">Importa tu CV</h2>
+              <p className="text-sm text-slate-500">{vacante.descripcion}</p>
+              <p className="text-sm text-slate-500">
+                Subimos tu hoja de vida y rellenamos el formulario con lo que diga. Después lo revisas:
+                lo que se lea mal se corrige a mano.
+              </p>
+              <label
+                className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-10 text-center transition-colors ${
+                  leyendo ? 'border-brand-300 bg-brand-50' : 'border-slate-200 hover:border-brand-300 hover:bg-slate-50'
+                }`}
+              >
+                <input
+                  type="file"
+                  accept=".pdf,.docx"
+                  className="hidden"
+                  onChange={leerCv}
+                  disabled={leyendo}
+                />
+                {leyendo ? (
+                  <>
+                    <Loader2 className="animate-spin text-brand-600" size={28} />
+                    <p className="mt-3 text-sm font-medium text-brand-700">Leyendo tu CV…</p>
+                  </>
+                ) : (
+                  <>
+                    <UploadCloud className="text-slate-400" size={28} />
+                    <p className="mt-3 text-sm font-medium text-slate-600">
+                      Arrastra tu CV o haz clic para subirlo
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">Formatos: PDF o DOCX</p>
+                  </>
+                )}
+              </label>
+              <button
+                onClick={() => setPaso('personales')}
+                className="w-full text-center text-xs text-slate-400 underline hover:text-slate-600"
+              >
+                Prefiero escribirlo todo a mano
+              </button>
+            </div>
+          )}
+
           {paso === 'personales' && (
             <div className="space-y-6">
-              <p className="text-sm text-slate-500">{vacante.descripcion}</p>
+              {avisoDeLectura && (
+                <p className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                  {avisoDeLectura}
+                </p>
+              )}
 
               <div className="flex justify-end">
                 <p className="text-xs text-slate-400">
@@ -619,8 +724,13 @@ export function PostularView() {
                 </div>
               </div>
 
-              {/* Este es el primer paso, así que no hay «Anterior»: solo Continuar, a la derecha. */}
-              <div className="flex items-center justify-end border-t border-slate-100 pt-4">
+              <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+                <button
+                  onClick={() => setPaso('cv')}
+                  className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
+                >
+                  <ArrowLeft size={15} /> Anterior
+                </button>
                 <button
                   onClick={() => validarPersonales() && setPaso('adicional')}
                   className="flex items-center gap-1 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
