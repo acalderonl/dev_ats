@@ -28,6 +28,8 @@ LIMITES = {
     "postular": (10, 60 * 10),
     # Mirar una vacante es barato y legítimo repetir.
     "consulta": (60, 60),
+    # Subir una foto o un CV escribe en disco sin que nadie haya iniciado sesión.
+    "subir_archivo": (10, 60 * 10),
 }
 
 _accesos: dict[str, deque[float]] = defaultdict(deque)

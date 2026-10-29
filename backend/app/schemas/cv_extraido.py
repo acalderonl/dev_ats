@@ -101,3 +101,6 @@ class CvExtraidoOut(CvExtraido):
     motor: str
     aviso: str | None = None
     campos_encontrados: int = 0
+    # Dónde quedó guardado el archivo subido. Hasta ahora el CV se leía y se tiraba:
+    # quedaba lo que la extracción hubiera entendido y nada con qué contrastarlo.
+    cv_documento_url: str | None = None

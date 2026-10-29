@@ -8,6 +8,81 @@ una funcionalidad que funcione.
 
 ---
 
+## 2026-10-28 — Sesión 12 · El formulario del candidato, entero
+
+**Fase:** **M2.1 cerrada** (el CV ya no se tira) y el formulario de postulación rehecho contra
+el esquema que entregó la institución.
+
+**El encargo:** mapear `docs/resouces/ESQUEMA FORMULARIO PARA APLICANTE ATS.docx`, reformar el
+formulario «con foto, con todo», y confirmar que la base de datos lo soporta.
+
+**Lo primero fue leer el documento, que no tiene texto.** `docx2txt` devuelve cero caracteres:
+son ocho capturas de la pantalla de Hiring Room. Se descomprimió el `.docx` y se leyeron las
+imágenes de `word/media/`. De ahí salió el mapeo.
+
+**La base ya lo tenía, y es cierto.** Comprobado tabla por tabla: `postulantes` con sus 20
+columnas, más `postulante_educacion`, `postulante_idiomas` y `postulante_experiencia` (migración
+0007). El backend también: `PostularRequest` ya aceptaba los ~40 campos. Lo que estaba viejo era
+**la pantalla**: seguía siendo la de 12 campos, y llamaba al lector antiguo (`/parse-cv`) en vez
+del bueno (`/leer-cv`).
+
+**Lo construido**
+- Formulario de tres pasos: importar el CV, datos personales (con foto) e información adicional,
+  con educación, idiomas, experiencia y redes **repetibles**.
+- La foto y el CV **se guardan de verdad**. Era la fase M2.1: hasta hoy el CV se leía en memoria
+  y se tiraba, y quedaba lo que la extracción hubiera entendido y nada con qué contrastarlo.
+- `/leer-cv` guarda y lee **en la misma subida**. Pedir el archivo dos veces haría al candidato
+  subirlo dos veces, y la segunda cuesta otra llamada de pago.
+- `docs/FORMULARIO_DEL_CANDIDATO.md`: el mapeo campo por campo. Es el contrato del robot de ETL.
+
+**Lo que más importa de este cambio: dónde acaban esos archivos**
+La foto y el CV son datos personales. `/api/v1/media` va **sin autenticación** a propósito,
+porque LinkedIn tiene que poder leer la imagen de un post. Colgar ahí el CV de alguien habría
+dejado su hoja de vida a un nombre de archivo de distancia, y un nombre difícil de adivinar no
+es un control de acceso. Van a `media_data/postulantes/`, salen por `/api/v1/archivos`, que pide
+sesión, y la ruta pública **se niega a servir esa carpeta**. Hay una prueba que lo comprueba.
+
+**Dos decisiones contra el esquema de referencia, a propósito**
+- **Campo con sugerencias en vez de selector cerrado** para país, institución, idioma, industria
+  y área. Mantener a mano las 195 nacionalidades o las universidades del mundo sería prometer
+  una lista completa que nunca lo estaría, y dejaría fuera a una persona real. Cerrados se
+  quedan los conjuntos que sí lo son: género, nivel de estudio, jerarquía, nivel de idioma.
+- **Localidad es texto libre.** En la referencia es un selector; mantener las ciudades del
+  Ecuador al día no lo íbamos a hacer.
+
+**Dos fallos reales que aparecieron al probar, no al escribir**
+- Los tres campos con sugerencias (Nacionalidad, País, Provincia) **se validaban pero no
+  enseñaban el error**: `Sugerido` no pintaba el mensaje. Se veía pulsando Continuar con el
+  formulario vacío: salían ocho errores y esos tres no. Arreglado.
+- La ruta autenticada devolvía **404 para un archivo que sí existía**: resolvía el nombre sin su
+  carpeta. Lo encontró la prueba, no la lectura del código.
+
+**Verificado de punta a punta**
+- Rellenado el formulario entero en el navegador y enviado: **201 Created**.
+- En PostgreSQL, las cuatro tablas: la ficha con sus 17 campos (incluida la edad calculada, 29,
+  a partir del 7/9/1997), un título en `postulante_educacion`, «Inglés» en `postulante_idiomas`
+  y el puesto en `postulante_experiencia`.
+- Comprobada la validación: con el formulario vacío salen los once errores y no deja pasar.
+- Dos pruebas que **ya existían** se pusieron en rojo al guardar el CV antes de leerlo: una
+  esperaba 413 por tamaño y recibía el 400 del guardado, y otra mandaba texto plano con nombre
+  `.docx`, que el guardado rechaza por los bytes. No se tocaron: se corrigió el orden —leer
+  primero, guardar después—, que además evita dejar copias de archivos que el lector rechaza.
+  Hay una prueba nueva que fija ese orden.
+- 184 pruebas en verde (eran 173). Las 11 nuevas cubren la subida de foto y CV, el rechazo por
+  los bytes y no por la extensión, que el nombre lo pone el servidor, que sin sesión no se
+  descarga, y que `/media` no sirve la carpeta privada ni con `..`.
+
+**Pendiente / avisos**
+- **El robot de ETL no existe todavía.** Quien rellena hoy es la lectura con Claude; sin clave
+  configurada caen cuatro campos por heurísticas y la pantalla lo avisa. El contrato para el
+  robot es el mapeo nuevo.
+- **Nadie borra los archivos huérfanos**: una foto subida en un formulario abandonado se queda.
+- 🔴 Sigue sin poder borrarse a un candidato a petición (S.5). Con fotos y CV guardados de
+  verdad, esto pesa más que ayer.
+
+---
+
+
 ## 2026-10-28 — Sesión 11 · Conectar LinkedIn pegando un token
 
 **Fase:** M1 — integraciones. Tercer camino hacia LinkedIn, el que de verdad desbloquea

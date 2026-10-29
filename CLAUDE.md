@@ -110,13 +110,22 @@ Contraseña para los tres: `Demo1234!`
 - `reclutador@atsdemo.com` → Reclutador / Empleador
 - `entrevistador@atsdemo.com` → Entrevistador / Evaluador
 
-### Parser de CV
+### El CV y el formulario del candidato
 
-`app/services/cv_parser_service.py` extrae texto de `.pdf` (pdfplumber) y `.docx`
-(docx2txt) y aplica **heurísticas con expresiones regulares** (no IA/NLP) para
-adivinar nombre, email, teléfono, cédula, nivel de instrucción y experiencia laboral.
-El formato `.doc` binario legado no es soportado (se pide convertir a `.docx`/`.pdf`).
-Es un punto de partida funcional, no un extractor de precisión garantizada.
+El formulario de postulación son **tres pasos** y pide el esquema entero que entregó la
+institución. El mapeo campo por campo —qué se pide, en qué columna cae y qué busca el lector—
+está en **`docs/FORMULARIO_DEL_CANDIDATO.md`**, y es el contrato del futuro robot de ETL.
+
+Dos lectores, y el orden importa:
+
+- `extraccion_cv_service.py` es el bueno: manda el archivo a Claude y devuelve los ~40 campos
+  del formulario. Es lo que usa `POST /api/v1/public/leer-cv`, que además **guarda el archivo**
+  en la misma subida: pedirlo dos veces costaría otra llamada de pago.
+- `cv_parser_service.py` extrae texto de `.pdf` (pdfplumber) y `.docx` (docx2txt) y aplica
+  **heurísticas con expresiones regulares** (no IA). Es el respaldo cuando no hay clave de
+  Anthropic configurada: saca cuatro campos y **lo dice**, en vez de aparentar que leyó el CV.
+
+El `.doc` binario legado no se soporta en ninguno de los dos (se pide `.docx` o `.pdf`).
 
 ### Módulo de Vacantes
 
@@ -183,10 +192,18 @@ internet.
 
 ### Archivos subidos
 
-`almacenamiento_service.py` guarda la imagen del post en el volumen `media_data` (sobrevive a
-`docker compose down`, **no** a `down -v`) y la sirve `/api/v1/media`. Se valida **el tipo real por
-los bytes, no la extensión**, el tamaño leyendo a trozos, y el nombre lo genera el servidor: el del
-archivo subido no se usa nunca para construir la ruta.
+`almacenamiento_service.py` guarda en el volumen `media_data` (sobrevive a `docker compose down`,
+**no** a `down -v`). Se valida **el tipo real por los bytes, no la extensión**, el tamaño leyendo
+a trozos, y el nombre lo genera el servidor: el del archivo subido no se usa nunca para construir
+la ruta.
+
+Dos carpetas, y la diferencia es de permisos, no de orden:
+
+- `posts/` — la imagen del post. Sale por `/api/v1/media`, **sin autenticación**, porque LinkedIn
+  y el correo tienen que poder verla y no traen el token de nadie.
+- `postulantes/` — la foto y el CV de un candidato. **Datos personales.** Salen por
+  `/api/v1/archivos/postulantes/{nombre}`, que pide sesión, y `/api/v1/media` **se niega a
+  servir esa carpeta** aunque se adivine el nombre. Hay una prueba que lo comprueba.
 
 ## Marca
 
@@ -223,10 +240,13 @@ frontend/src/
 
 - **Publicar a la hora programada.** La fecha se guarda, pero nada la ejecuta: hoy hay que pulsar
   el botón. Falta un proceso que lo haga (fase M1.6). La pantalla lo advierte.
-- **El seed corre en cada arranque sin mirar el entorno** (`main.py:18`): en un servidor real
-  crearía un super admin con una contraseña publicada. Es la fase activa (S.2).
-- **El CV del candidato se sigue analizando en memoria y tirando** (`cv_documento_url` es un
-  relleno). La imagen del post ya va a un volumen: el CV puede seguir el mismo camino (M2.1).
+- **El robot de ETL que rellene la ficha del candidato.** Hoy quien lo hace es la lectura con
+  Claude, con las heurísticas de respaldo. El contrato que tiene que cumplir el robot es el
+  mapeo de `docs/FORMULARIO_DEL_CANDIDATO.md`.
+- **Nadie borra los archivos huérfanos**: si alguien sube una foto y abandona el formulario, el
+  archivo se queda en el volumen.
+- **Borrar los datos de un candidato a petición** (fase S.5). Hace falta antes de que entren
+  personas reales.
 - Crear preguntas filtro desde la aplicación (M1.5): hoy solo existen las del seed.
 - Capa `repositories/` separada de los routers.
 - Guardas de ruta en el frontend por rol (hoy solo se oculta la navegación; el backend

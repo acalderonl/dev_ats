@@ -382,3 +382,77 @@ export interface ParaCompartirEnLinkedIn {
   url_del_compositor: string
   aviso: string
 }
+
+// --- Ficha del candidato: el esquema de `docs/resouces/ESQUEMA FORMULARIO...` ---
+
+/** Una fila de educación. Fechas en mes + año porque un CV rara vez trae el día. */
+export interface EducacionItem {
+  titulo: string | null
+  pais: string | null
+  institucion: string | null
+  area_estudio: string | null
+  nivel_estudio: string | null
+  estado_estudio: string | null
+  inicio_mes: number | null
+  inicio_anio: number | null
+  actualmente: boolean
+  fin_mes: number | null
+  fin_anio: number | null
+  descripcion: string | null
+}
+
+export interface IdiomaItem {
+  idioma: string
+  nivel_escrito: string | null
+  nivel_oral: string | null
+}
+
+export interface ExperienciaItem {
+  puesto: string | null
+  jerarquia: string | null
+  empresa: string | null
+  pais: string | null
+  industria: string | null
+  area_trabajo: string | null
+  subarea_trabajo: string | null
+  inicio_mes: number | null
+  inicio_anio: number | null
+  actualmente: boolean
+  fin_mes: number | null
+  fin_anio: number | null
+  descripcion: string | null
+}
+
+export interface RedSocial {
+  red: string
+  url: string
+}
+
+/** Lo que devuelve la lectura del CV: los mismos campos del formulario, más cómo fue. */
+export interface CvExtraido {
+  nombres: string | null
+  apellidos: string | null
+  email: string | null
+  tipo_documento: string | null
+  numero_documento: string | null
+  fecha_nacimiento: string | null
+  telefono_codigo_pais: string | null
+  telefono: string | null
+  telefono_tipo: string | null
+  genero: string | null
+  nacionalidad: string | null
+  pais_residencia: string | null
+  provincia: string | null
+  localidad: string | null
+  estudios_secundarios_completos: boolean | null
+  linkedin_url: string | null
+  otras_redes: RedSocial[]
+  educacion: EducacionItem[]
+  idiomas: IdiomaItem[]
+  experiencia: ExperienciaItem[]
+  /** 'claude', 'heuristicas' o 'vacio': distingue "el CV no lo decía" de "no hay lector". */
+  motor: string
+  aviso: string | null
+  campos_encontrados: number
+  cv_documento_url: string | null
+}

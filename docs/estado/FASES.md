@@ -87,7 +87,7 @@ información perdida que no se recupera.
 
 | Fase | Qué | Terminada cuando | Estado |
 |---|---|---|---|
-| **M2.1** | Guardar el CV de verdad | El archivo queda guardado y se puede descargar desde la ficha del candidato. Hoy `cv_documento_url` guarda el texto `pendiente-de-almacenamiento`: **el CV se lee, se analiza y se tira**. Desde el 2026-10-12 hay camino hecho: `almacenamiento_service` y el volumen `media_data` ya guardan la imagen del post. | pendiente |
+| **M2.1** | Guardar el CV de verdad | **Hecha el 2026-10-28.** `POST /public/leer-cv` guarda el archivo en la misma subida y devuelve su URL; la foto del candidato igual. Van a `media_data/postulantes/`, que **no** sirve la ruta pública sin autenticación. Falta que la ficha del candidato ofrezca la descarga en la interfaz. | hecha |
 | **M1.1** | Subir el documento de la vacante | El `.pdf`/`.docx` se guarda y se puede volver a descargar (hoy el campo del formulario no sube nada). Mismo camino que M2.1. | pendiente |
 | **M1.6** | Publicar el post a la hora programada | Llegada la fecha de `post_programado_para`, el post sale **solo**. Hoy la fecha se guarda y no la ejecuta nadie: hay que pulsar el botón, y la pantalla lo advierte. Necesita un proceso aparte (APScheduler en el propio backend es lo más barato; Docker tiene 3,7 GB para todo). | pendiente (nueva, 2026-10-12) |
 | **T.6** | Build de producción verificado | La imagen construida desde cero arranca y responde, no el contenedor de desarrollo con recarga en caliente. | ✅ **hecha** (2026-10-20). Nunca se había ejecutado: faltaba `@types/node` y no existía `package-lock.json`. Ahora las dos imágenes se construyen, arrancan y responden, verificado con un ensayo completo en local  |

@@ -162,3 +162,13 @@ class ContactoOut(PostulanteOut):
     ultimo_estado_pipeline: str | None = None
     ultima_vacante: str | None = None
     total_postulaciones: int = 0
+
+
+class ArchivoSubido(BaseModel):
+    """La URL con la que el formulario se refiere luego al archivo que acaba de subir.
+
+    No se devuelve el nombre original: no se usa para nada y repetirlo invita a
+    construir rutas con él.
+    """
+
+    url: str

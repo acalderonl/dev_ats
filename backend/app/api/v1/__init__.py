@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.v1 import (
+    archivos,
     auth,
     cargos,
     catalogos,
@@ -32,3 +33,4 @@ api_router.include_router(contactos.router, prefix="/contactos", tags=["Contacto
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
 api_router.include_router(configuracion.router, prefix="/configuracion", tags=["Configuración"])
 api_router.include_router(media.router, prefix="/media", tags=["Medios"])
+api_router.include_router(archivos.router, prefix="/archivos", tags=["Archivos de candidatos"])

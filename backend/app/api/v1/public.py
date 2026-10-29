@@ -12,10 +12,10 @@ from app.models.postulante import Postulante
 from app.models.postulante_perfil import PostulanteEducacion, PostulanteExperiencia, PostulanteIdioma
 from app.models.vacante import Vacante
 from app.schemas.cargo import PreguntaFiltroOut
-from app.schemas.postulante import CvParseadoOut, PostularRequest, PostulanteOut
+from app.schemas.postulante import ArchivoSubido, CvParseadoOut, PostularRequest, PostulanteOut
 from app.schemas.cv_extraido import CvExtraidoOut
 from app.schemas.vacante import VacantePublicaOut
-from app.services import extraccion_cv_service
+from app.services import almacenamiento_service, extraccion_cv_service
 from app.services.cv_parser_service import parse_cv_upload
 
 router = APIRouter()
@@ -85,12 +85,52 @@ async def parsear_cv(file: UploadFile = File(...)) -> CvParseadoOut:
     dependencies=[Depends(limitar("leer_cv"))],
 )
 async def leer_cv(file: UploadFile = File(...), db: Session = Depends(get_db)) -> CvExtraidoOut:
-    """Lee el CV y devuelve los campos del formulario de postulación.
+    """Guarda el CV y devuelve los campos del formulario de postulación.
 
     Sin autenticación porque la usa el candidato antes de existir en el sistema. El
     tope de tamaño y de formato lo aplica el propio servicio.
+
+    Se guarda en la misma subida: pedir el archivo dos veces —una para entenderlo y
+    otra para conservarlo— haría al candidato subirlo dos veces, y la segunda cuesta
+    otra llamada de pago.
+
+    Se lee **antes** de guardar. Al revés, un archivo que el lector rechaza (un `.doc`
+    antiguo, uno que pasa del tamaño) ya habría dejado su copia en el volumen sin que
+    ninguna ficha llegue nunca a apuntar a ella.
     """
-    return await extraccion_cv_service.leer_cv(db, file)
+    extraido = await extraccion_cv_service.leer_cv(db, file)
+    await file.seek(0)
+    extraido.cv_documento_url = await almacenamiento_service.guardar_cv(file)
+    return extraido
+
+
+@router.post(
+    "/foto",
+    response_model=ArchivoSubido,
+    dependencies=[Depends(limitar("subir_archivo"))],
+)
+async def subir_foto(file: UploadFile = File(...)) -> ArchivoSubido:
+    """Guarda la foto del candidato.
+
+    La URL que devuelve **no se abre sin sesión**: la foto es un dato personal y vive
+    en la carpeta privada. El candidato ve la suya del archivo que acaba de elegir,
+    sin pedirla de vuelta.
+    """
+    return ArchivoSubido(url=await almacenamiento_service.guardar_foto_de_candidato(file))
+
+
+@router.post(
+    "/cv",
+    response_model=ArchivoSubido,
+    dependencies=[Depends(limitar("subir_archivo"))],
+)
+async def subir_cv(file: UploadFile = File(...)) -> ArchivoSubido:
+    """Guarda el CV sin leerlo.
+
+    Para quien adjunta el currículum al final sin haber usado la importación, o lo
+    cambia por otro: leerlo otra vez costaría una llamada de pago para nada.
+    """
+    return ArchivoSubido(url=await almacenamiento_service.guardar_cv(file))
 
 
 def _nivel_mas_alto(educacion: list) -> str | None:
