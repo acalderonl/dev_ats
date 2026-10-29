@@ -8,6 +8,61 @@ una funcionalidad que funcione.
 
 ---
 
+## 2026-10-28 — Sesión 11 · Conectar LinkedIn pegando un token
+
+**Fase:** M1 — integraciones. Tercer camino hacia LinkedIn, el que de verdad desbloquea
+publicar automáticamente desde este entorno.
+
+**Lo que trajo el dueño:** una captura del portal de LinkedIn con la aplicación *ATS FICHAR*
+creada y un token recién generado desde el *Token generator*, con los permisos `email`,
+`openid`, `profile` y `w_member_social`, activo y con dos meses por delante. «Estoy hasta
+aquí»: tenía el token, y la aplicación no tenía dónde ponerlo.
+
+**Por qué importaba el atajo.** La pantalla solo ofrecía el ida y vuelta de OAuth, que exige
+Client Secret y una Redirect URI registrada que coincida carácter por carácter. Ayer quedó
+escrito que LinkedIn documenta esa URL **por HTTPS**, y este entorno todavía vive en
+`localhost`: el camino de ayer podía no llegar a funcionar hasta tener el dominio. Un token ya
+emitido salta las dos cosas.
+
+**Lo construido**
+- `POST /configuracion/linkedin/token`: recibe el token, le pregunta a LinkedIn de quién es
+  (`/v2/userinfo`) y **solo entonces** lo guarda cifrado. Un token mal copiado o sin permisos
+  se rechaza al pegarlo, no al intentar publicar una vacante.
+- El schema le quita espacios y saltos de línea: el generador lo muestra partido en varias
+  líneas y al copiarlo se cuelan, y LinkedIn luego lo rechaza sin decir por qué.
+- `_guardar_token` sale como función común: los dos caminos (canje de OAuth y token pegado)
+  acaban con los mismos datos, así que qué se guarda y cómo se cifra no depende de por dónde
+  se entró.
+- En Configuración, el atajo va **antes** que los tres campos de la aplicación, con los
+  permisos que hay que marcar al generarlo.
+
+**Un fallo real que destapó el cambio**
+`publicar-linkedin` miraba `esta_configurado(db)` —que pregunta por Client ID, Secret y
+Redirect URI— **antes** de mirar si había token. Con un token pegado y sin esas credenciales,
+que es justo el caso de hoy, habría **simulado** la publicación teniendo con qué publicarla de
+verdad. Ahora manda el token; el modo simulado queda solo para cuando no hay ni token ni
+credenciales, y un token caducado avisa en vez de simular —simular ahí sería mentir dos veces:
+ni publicó, ni está desconectado—.
+
+**Un enredo propio, y lo que enseñó**
+La primera versión de la prueba del token caducado usaba la fixture `db_limpia` para envejecer
+la fila. Se quedó colgada: esa fixture mantiene abierta una transacción que ha borrado `roles`,
+y el `INSERT` del cliente en `tokens_linkedin` esperaba el bloqueo. Se vio mirando
+`pg_stat_activity` —`idle in transaction` contra `active/Lock`—, no adivinando. La prueba usa
+ahora una sesión propia y corta.
+
+**Pendiente / avisos**
+- 🔴 El token del dueño **viajó en una captura de pantalla** dentro de esta conversación.
+  Es una credencial activa durante dos meses: conviene revocarla en el portal y generar otra
+  para usarla de verdad.
+- Publicar de verdad desde aquí **todavía no se ha hecho**: haría un post real en el muro de
+  quien conecte. Lo comprobado es todo lo anterior a la llamada a LinkedIn.
+- Sigue en pie que `/compartir/<slug>` tiene que ser alcanzable desde internet para que la
+  tarjeta se vea.
+
+---
+
+
 ## 2026-10-26 — Sesión 10 · Publicar en LinkedIn sin OAuth
 
 **Fase:** M1 — integraciones. No cierra ninguna fase del mapa: es el camino alternativo al

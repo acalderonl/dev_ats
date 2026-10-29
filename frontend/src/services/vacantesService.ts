@@ -57,6 +57,9 @@ export const configuracionService = {
   guardar: (data: Partial<Record<string, string>>) => apiPut<ConfiguracionGeneral>('/configuracion', data),
   estadoLinkedIn: () => apiGet<EstadoLinkedIn>('/configuracion/linkedin/estado'),
   conectarLinkedIn: () => apiPost<{ url: string; state: string }>('/configuracion/linkedin/conectar'),
+  /** Atajo sin OAuth: un token ya emitido desde el portal de LinkedIn. */
+  guardarTokenLinkedIn: (access_token: string) =>
+    apiPost<EstadoLinkedIn>('/configuracion/linkedin/token', { access_token }),
   terminarConexionLinkedIn: (data: { code: string; state: string }) =>
     apiPost<EstadoLinkedIn>('/configuracion/linkedin/callback', data),
   desconectarLinkedIn: () => apiDelete<void>('/configuracion/linkedin/desconectar'),

@@ -144,7 +144,7 @@ los recibe; si vacío significara "borrar", guardar cualquier otra cosa mataría
 
 ### LinkedIn / correo / WhatsApp
 
-Hay **dos caminos para llevar una vacante a LinkedIn**, y conviene no confundirlos:
+Hay **tres caminos para llevar una vacante a LinkedIn**, y conviene no confundirlos:
 
 **1. Sin credenciales — el botón «LinkedIn» de la tarjeta.** El sistema arma el texto, lo copia
 al portapapeles y abre el compositor de LinkedIn (`sharing/share-offsite`) con el enlace de la
@@ -160,7 +160,13 @@ no es `publicado`**: desde aquí no se puede saber si llegó a publicarse, y afi
   En producción la reenvía nginx; en desarrollo, el proxy de `vite.config.ts`.
   ⚠️ Para que la tarjeta se vea, esa URL tiene que ser **alcanzable desde internet**.
 
-**2. Con credenciales — `linkedin_service.py`.** Publica en **el muro del reclutador** que conecta
+**2. Con un token pegado a mano — el atajo.** En el portal de LinkedIn, *Token generator* emite
+un token ya autorizado. Se pega en Configuración y `POST /configuracion/linkedin/token` le
+pregunta a LinkedIn de quién es (`/v2/userinfo`) antes de guardarlo cifrado. **No hace falta ni
+Client Secret ni Redirect URI**, que es donde más se rompe el camino 3. A cambio caduca a los
+~60 días y hay que pegar otro.
+
+**3. Con OAuth completo — `linkedin_service.py`.** Publica en **el muro del reclutador** que conecta
 su cuenta, que es la única vía automática sin aprobación de partner (productos *Sign In with
 LinkedIn (OIDC)* + *Share on LinkedIn*, scope `w_member_social`). La página de empresa (Community
 Management API) y el tablón de empleos (Talent Solutions) **exigen ser partner aprobado**. Sin

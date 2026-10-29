@@ -1,6 +1,6 @@
 # Estado del proyecto — dónde estamos AHORA
 
-> Última actualización: **2026-10-26** · Sesiones: **10** (en 9 días) · Pruebas: **164 en verde**
+> Última actualización: **2026-10-28** · Sesiones: **11** (en 10 días) · Pruebas: **173 en verde**
 > Este archivo se lee al empezar cada sesión. Si algo aquí ya no es cierto, se corrige antes de seguir.
 
 ## En una línea
@@ -45,7 +45,7 @@ Leyenda: 🟢 base funcionando · 🟡 base funcionando con huecos conocidos · 
 
 | Módulo | Estado | Verificado | Siguiente fase | Etapa |
 |---|---|---|---|---|
-| **M1** Cargos, vacantes e integraciones | 🟢 | Cargos y vacantes: crear, editar y estados, **con pruebas**. Imagen del post y cifrado de secretos comprobados en la base. Compartir en LinkedIn **sin OAuth**: medido que el rastreador no ve la SPA, comprobado que `/compartir` sí le da las etiquetas y que la vacante queda como `compartido` | M1.6 publicar a la hora programada | 4 |
+| **M1** Cargos, vacantes e integraciones | 🟢 | Cargos y vacantes: crear, editar y estados, **con pruebas**. Imagen del post y cifrado de secretos comprobados en la base. Compartir en LinkedIn **sin OAuth**: medido que el rastreador no ve la SPA, comprobado que `/compartir` sí le da las etiquetas y que la vacante queda como `compartido`. Conectar LinkedIn pegando un token del portal: **con pruebas**, incluido que un token pegado publica de verdad en vez de simular | M1.6 publicar a la hora programada | 4 |
 | **M2** Portal público y parsing de CV | 🟡 | ❌ nada | M2.1 guardar el CV de verdad | 3 |
 | **M3** Pipeline de reclutamiento | 🟡 | Reglas de transición, **con pruebas** | M3.3 puntuación de coincidencia | 4 |
 | **M4** Directorio de contactos | 🟡 | Búsqueda, **con pruebas** | M4.1 exportar de verdad | 4 |
@@ -131,7 +131,7 @@ es **tuyo**: crear la cuenta en Render y conectar el repositorio (`docs/DESPLIEG
 ## Lo que necesita tu intervención
 
 | Qué | Por qué está parado |
-| **App de LinkedIn** | Solo para el camino automático (publicar desde el sistema). Hay que crearla en developer.linkedin.com y pegar Client ID, Secret y Redirect URI en Configuración; hasta entonces ese botón queda en **modo simulado** y lo dice. **El botón «LinkedIn» de la tarjeta no la necesita**: copia el texto y abre el compositor. |
+| **App de LinkedIn** | Ya creada (*ATS FICHAR*). Para publicar automáticamente basta **pegar un token** del *Token generator* en Configuración; caduca a los ~60 días. Client ID, Secret y Redirect URI solo hacen falta para el camino con OAuth, que no se renueva a mano pero exige la Redirect URI registrada. |
 | **App de LinkedIn** | Hay que crearla en developer.linkedin.com y pegar Client ID, Secret y Redirect URI en Configuración. Hasta entonces, publicar queda en **modo simulado** y lo dice. |
 | **Contraseña de aplicación de Gmail** | Con verificación en dos pasos activada, generarla en la cuenta de Google. Sin eso no hay envío interno. |
 | **Publicar a la hora programada** | La fecha se guarda, pero **nada la ejecuta todavía**: hoy hay que pulsar el botón. Necesita un proceso aparte (fase M1.6). |

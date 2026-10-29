@@ -30,6 +30,7 @@ from app.schemas.configuracion import (
     JornadaUpdate,
     PruebaDeCorreo,
     RetornoDeLinkedIn,
+    TokenPegado,
     UrlDeConexion,
 )
 from app.services import configuracion_service, correo_service, linkedin_service
@@ -115,6 +116,25 @@ def iniciar_conexion(
     return UrlDeConexion(url=url, state=state)
 
 
+def _guardar_token(db: Session, usuario: Usuario, datos: dict) -> None:
+    """Guarda el token cifrado, venga del canje de OAuth o pegado a mano.
+
+    Los dos caminos acaban aquí con la misma forma de `datos`, así que lo que se
+    guarda y cómo se cifra no depende de por dónde se entró.
+    """
+    cifrado = configuracion_service.cifrador().encrypt(datos["access_token"].encode()).decode()
+    token = db.get(TokenLinkedIn, usuario.id)
+    if token is None:
+        token = TokenLinkedIn(usuario_id=usuario.id)
+        db.add(token)
+    token.access_token_cifrado = cifrado
+    token.persona_urn = datos["persona_urn"]
+    token.nombre_en_linkedin = datos["nombre"]
+    token.expira_en = datos["expira_en"]
+    token.revocado = False
+    db.commit()
+
+
 @router.post("/linkedin/callback", response_model=EstadoLinkedIn)
 def terminar_conexion(
     payload: RetornoDeLinkedIn,
@@ -142,18 +162,38 @@ def terminar_conexion(
             detail=f"LinkedIn no aceptó la conexión: {error}",
         )
 
-    cifrado = configuracion_service.cifrador().encrypt(datos["access_token"].encode()).decode()
-    token = db.get(TokenLinkedIn, usuario.id)
-    if token is None:
-        token = TokenLinkedIn(usuario_id=usuario.id)
-        db.add(token)
-    token.access_token_cifrado = cifrado
-    token.persona_urn = datos["persona_urn"]
-    token.nombre_en_linkedin = datos["nombre"]
-    token.expira_en = datos["expira_en"]
-    token.revocado = False
-    db.commit()
+    _guardar_token(db, usuario, datos)
 
+    return estado_de_linkedin(db=db, usuario=usuario)
+
+
+@router.post("/linkedin/token", response_model=EstadoLinkedIn)
+def guardar_token_pegado(
+    payload: TokenPegado,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_roles("super_admin", "reclutador")),
+) -> EstadoLinkedIn:
+    """Conecta pegando un token del *Token generator* del portal de LinkedIn.
+
+    El otro camino (`/conectar` + `/callback`) necesita Client Secret y una Redirect
+    URI registrada que coincida exactamente; con el token ya emitido no hace falta
+    ninguna de las dos. A cambio caduca a los ~60 días y hay que pegar otro: LinkedIn
+    no da renovación automática fuera del programa de partners.
+
+    Antes de guardarlo se le pregunta a LinkedIn de quién es: así no se acepta un
+    token inservible que solo daría la cara al intentar publicar.
+    """
+    try:
+        datos = linkedin_service.identificar(payload.access_token)
+    except linkedin_service.TokenRechazado as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
+    except httpx.HTTPError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"No se pudo comprobar el token con LinkedIn: {error}",
+        )
+
+    _guardar_token(db, usuario, datos)
     return estado_de_linkedin(db=db, usuario=usuario)
 
 

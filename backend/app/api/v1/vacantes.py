@@ -291,9 +291,23 @@ def publicar_en_linkedin(
     enlace = _url_publica(request, vacante)
     texto = _texto_del_post(vacante, enlace)
 
-    # Sin credenciales, modo simulado: recorre el flujo entero y lo deja marcado como
-    # tal, para no hacer creer que algo salió a internet cuando no salió.
-    if not linkedin_service.esta_configurado(db):
+    # Quien manda es el token, no las credenciales de la aplicación: uno pegado a mano
+    # desde el portal de LinkedIn publica de verdad aunque no haya Client Secret ni
+    # Redirect URI guardados. Mirar primero `esta_configurado` simulaba la publicación
+    # teniendo con qué hacerla.
+    token = db.get(TokenLinkedIn, current_user.id)
+    token_usable = token is not None and not token.revocado and token.expira_en > datetime.now(timezone.utc)
+
+    if not token_usable:
+        # Sin nada con qué publicar y sin nada que conectar, modo simulado: recorre el
+        # flujo entero y lo deja marcado como tal, para no hacer creer que algo salió a
+        # internet. Pero si hay un token caducado o credenciales puestas, la respuesta
+        # honesta es decir que hay que volver a conectar.
+        if token is not None or linkedin_service.esta_configurado(db):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Conecta tu cuenta de LinkedIn en Configuración (o vuelve a conectarla: el acceso caducó)",
+            )
         vacante.linkedin_post_id = linkedin_service._publicar_simulado(vacante.id, vacante.titulo)
         vacante.post_estado = "publicado"
         vacante.post_publicado_en = datetime.now(timezone.utc)
@@ -304,13 +318,6 @@ def publicar_en_linkedin(
             linkedin_post_id=vacante.linkedin_post_id,
             simulado=True,
             mensaje="LinkedIn no está configurado: se simuló la publicación. No salió nada a internet.",
-        )
-
-    token = db.get(TokenLinkedIn, current_user.id)
-    if token is None or token.revocado or token.expira_en <= datetime.now(timezone.utc):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Conecta tu cuenta de LinkedIn en Configuración (o vuelve a conectarla: el acceso caducó)",
         )
 
     try:

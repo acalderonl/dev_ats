@@ -170,6 +170,49 @@ def canjear_codigo(db: Session, codigo: str) -> dict:
     }
 
 
+# Lo que dura un token del generador de LinkedIn. No viene escrito en el token y
+# LinkedIn no lo dice al preguntar por el perfil: su propia pantalla anuncia ~2
+# meses. Solo sirve para avisar antes de tiempo; si se queda corto o largo, quien
+# manda es LinkedIn devolviendo 401 al publicar.
+DIAS_DEL_TOKEN_PEGADO = 60
+
+
+class TokenRechazado(RuntimeError):
+    """LinkedIn no aceptó el token pegado, o le falta permiso para publicar."""
+
+
+def identificar(access_token: str) -> dict:
+    """Pregunta a LinkedIn de quién es un token ya emitido.
+
+    Es el atajo del *Token generator* del portal de desarrolladores: evita montar el
+    ida y vuelta de OAuth —y con él la Redirect URI, que es donde más se rompe— a
+    cambio de volver a pegar un token cada ~60 días.
+
+    Devuelve {access_token, expira_en, persona_urn, nombre}, lo mismo que
+    `canjear_codigo`, para que a partir de aquí los dos caminos sean el mismo.
+    """
+    with httpx.Client(timeout=20) as cliente:
+        perfil = cliente.get(USERINFO, headers={"Authorization": f"Bearer {access_token}"})
+
+    if perfil.status_code in (401, 403):
+        raise TokenRechazado(
+            "LinkedIn no acepta ese token: puede estar mal copiado, caducado, "
+            "o generado sin los permisos 'openid' y 'profile'."
+        )
+    perfil.raise_for_status()
+    datos = perfil.json()
+
+    if "sub" not in datos:
+        raise TokenRechazado("LinkedIn no dice de quién es el token; genéralo con el permiso 'openid'.")
+
+    return {
+        "access_token": access_token,
+        "expira_en": datetime.now(timezone.utc) + timedelta(days=DIAS_DEL_TOKEN_PEGADO),
+        "persona_urn": f"urn:li:person:{datos['sub']}",
+        "nombre": datos.get("name"),
+    }
+
+
 # ------------------------------------------------------------------------ Publicar
 
 

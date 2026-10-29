@@ -109,6 +109,8 @@ export function ConfiguracionView() {
   const [jornadas, setJornadas] = useState<Jornada[]>([])
   const [cargando, setCargando] = useState(true)
   const [guardando, setGuardando] = useState(false)
+  const [tokenPegado, setTokenPegado] = useState('')
+  const [guardandoToken, setGuardandoToken] = useState(false)
 
   // Lo que el usuario escribe. Separado de `config` porque los secretos no se
   // devuelven: aquí vacío significa "no lo toques", no "bórralo".
@@ -191,6 +193,26 @@ export function ConfiguracionView() {
       setResultadoPrueba({ ok: false, mensaje: errorMessage(err) })
     } finally {
       setProbando(false)
+    }
+  }
+
+  /**
+   * El atajo del generador de tokens del portal de LinkedIn.
+   *
+   * El backend se lo pregunta a LinkedIn antes de guardarlo, así que un token mal
+   * copiado o sin permisos se rechaza aquí y no al intentar publicar.
+   */
+  async function guardarTokenPegado() {
+    setGuardandoToken(true)
+    try {
+      const estado = await configuracionService.guardarTokenLinkedIn(tokenPegado)
+      setEstadoLinkedIn(estado)
+      setTokenPegado('')
+      toast.success(`Conectado como ${estado.nombre_en_linkedin ?? 'tu cuenta de LinkedIn'}`)
+    } catch (err) {
+      toast.error(errorMessage(err))
+    } finally {
+      setGuardandoToken(false)
     }
   }
 
@@ -293,18 +315,59 @@ export function ConfiguracionView() {
           </p>
           <p>
             Conectar sirve para lo otro: que el sistema <strong>publique solo</strong>, sin abrir
-            LinkedIn. Para eso LinkedIn exige una aplicación propia —no hay otra vía—, y los tres
-            datos de abajo salen de ella.
+            LinkedIn. Para eso LinkedIn exige una aplicación propia —no hay otra vía—, y hay dos
+            maneras de enlazarla: pegar un token ya generado, o dejar que la aplicación pida
+            permiso.
           </p>
           <p className="flex items-start gap-1.5 text-amber-800">
             <AlertTriangle size={14} className="mt-0.5 shrink-0" />
             <span>
-              Por cualquiera de las dos vías sale en <strong>el muro de quien conecta su cuenta</strong>.
+              Se publique como se publique, sale en <strong>el muro de quien conecta su cuenta</strong>.
               La página de empresa y el tablón de empleos exigen ser partner aprobado por LinkedIn.
             </span>
           </p>
         </div>
 
+        {!estadoLinkedIn?.cuenta_conectada && (
+          <div className="mb-4 rounded-lg border border-brand-200 bg-brand-50/50 p-3">
+            <p className="mb-2 text-xs font-semibold text-slate-800">
+              Atajo: pega un token del portal
+            </p>
+            <p className="mb-2 text-xs text-slate-600">
+              En developer.linkedin.com, pestaña <em>Token generator</em>, genera un token con los
+              permisos <code className="rounded bg-white px-1">openid</code>,{' '}
+              <code className="rounded bg-white px-1">profile</code> y{' '}
+              <code className="rounded bg-white px-1">w_member_social</code>, y pégalo aquí. Así no
+              hacen falta ni el Client Secret ni la Redirect URI. Caduca a los ~60 días y habrá que
+              pegar otro: LinkedIn no lo renueva solo.
+            </p>
+            <textarea
+              value={tokenPegado}
+              onChange={(e) => setTokenPegado(e.target.value)}
+              rows={3}
+              placeholder="AQX..."
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            />
+            <button
+              type="button"
+              onClick={guardarTokenPegado}
+              disabled={guardandoToken || tokenPegado.trim().length === 0}
+              className="mt-2 flex items-center gap-1.5 rounded-lg bg-[#0a66c2] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#004182] disabled:opacity-50"
+            >
+              {guardandoToken ? <Loader2 size={14} className="animate-spin" /> : <Linkedin size={14} />}
+              Conectar con este token
+            </button>
+          </div>
+        )}
+
+        <p className="mb-2 text-xs font-semibold text-slate-800">
+          La otra vía: que la aplicación pida permiso ella misma
+        </p>
+        <p className="mb-3 text-xs text-slate-600">
+          Con estos tres datos el botón de abajo lleva a LinkedIn a pedir permiso, y el token se
+          renueva sin pegar nada a mano. Necesita que la Redirect URI esté registrada en tu
+          aplicación tal cual.
+        </p>
         <div className="space-y-4">
           <Campo
             etiqueta="Client ID"

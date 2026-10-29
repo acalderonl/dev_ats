@@ -140,3 +140,20 @@ class RetornoDeLinkedIn(BaseModel):
 
     code: str = Field(min_length=1)
     state: str = Field(min_length=1)
+
+
+class TokenPegado(BaseModel):
+    """Un token de acceso traído a mano del generador del portal de LinkedIn.
+
+    Es la alternativa al ida y vuelta de OAuth: no hace falta Client Secret ni
+    Redirect URI, a cambio de volver a pegarlo cuando caduque.
+    """
+
+    access_token: str = Field(min_length=20)
+
+    @field_validator("access_token")
+    @classmethod
+    def sin_espacios(cls, v: str) -> str:
+        # El generador lo muestra partido en varias líneas; al copiarlo se cuelan
+        # saltos y espacios que LinkedIn luego rechaza sin decir por qué.
+        return "".join(v.split())
