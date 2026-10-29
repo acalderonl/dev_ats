@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import quote
 from uuid import UUID
 
@@ -10,7 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import get_current_user, require_roles
-from app.core.utils import slugify
+from app.core.utils import normalizar, slugify
 from app.models.cargo import Cargo
 from app.models.tipo_contrato import TipoContrato
 from app.models.usuario import Usuario
@@ -181,6 +182,29 @@ async def subir_imagen_de_post(
     return ImagenSubidaOut(url=await almacenamiento_service.guardar_imagen_de_post(archivo))
 
 
+def _etiqueta(texto: str) -> str:
+    """Convierte un nombre en una etiqueta de LinkedIn: `#AnalistaDeReclutamiento`.
+
+    Sin tildes ni eñes a propósito: LinkedIn las admite, pero una etiqueta con tilde y
+    otra sin ella son dos etiquetas distintas, y quien busca escribe la fácil.
+    """
+    limpio = normalizar(texto)
+    return "#" + "".join(palabra.capitalize() for palabra in limpio.split() if palabra.isalnum())
+
+
+def _etiquetas(vacante: Vacante) -> str:
+    """Las etiquetas del post, sin repetir y sin las vacías."""
+    candidatas = ["#Empleo", _etiqueta(vacante.titulo)]
+    if vacante.cargo and vacante.cargo.clasificacion:
+        candidatas.append(_etiqueta(vacante.cargo.clasificacion))
+
+    vistas: list[str] = []
+    for etiqueta in candidatas:
+        if len(etiqueta) > 1 and etiqueta not in vistas:
+            vistas.append(etiqueta)
+    return " ".join(vistas)
+
+
 def _texto_del_post(vacante: Vacante, enlace: str) -> str:
     partes = [vacante.asunto or vacante.titulo, "", vacante.post_cuerpo or vacante.descripcion]
     if vacante.remuneracion is not None:
@@ -192,7 +216,9 @@ def _texto_del_post(vacante: Vacante, enlace: str) -> str:
     for campo in vacante.campos_personalizados or []:
         if campo.get("valor"):
             partes.append(f"{campo['etiqueta']}: {campo['valor']}")
-    partes += ["", f"Postula aquí: {enlace}"]
+    # La fecha de cierre mueve a postular hoy en vez de "luego lo miro".
+    partes.append(f"Postulaciones hasta el {vacante.fecha_limite:%d/%m/%Y}")
+    partes += ["", f"Postula aquí: {enlace}", "", _etiquetas(vacante)]
     return "\n".join(partes)
 
 
@@ -274,6 +300,41 @@ def preparar_para_compartir(
     )
 
 
+def _miniatura_para_linkedin(vacante: Vacante, access_token: str, persona_urn: str) -> tuple[str | None, str | None]:
+    """Sube la imagen del post a LinkedIn y devuelve (urn, aviso).
+
+    Ninguno de los problemas posibles aquí tumba la publicación: una vacante sin
+    tarjeta se ve peor, pero no publicarla por la foto sería peor todavía. Lo que no
+    se hace, se dice en el aviso que vuelve a la pantalla.
+    """
+    if not vacante.post_imagen_url:
+        return None, None
+
+    extension = Path(vacante.post_imagen_url).suffix.lower()
+    if extension not in linkedin_service.FORMATOS_DE_IMAGEN_EN_LINKEDIN:
+        return None, f"La imagen no se envió: LinkedIn no acepta {extension or 'ese formato'}, solo JPG, PNG o GIF."
+
+    # La imagen vive en nuestro volumen; LinkedIn necesita los bytes, no la URL.
+    relativa = vacante.post_imagen_url.split("/media/", 1)[-1]
+    try:
+        ruta = almacenamiento_service.ruta_de_media(relativa)
+        contenido = ruta.read_bytes()
+    except (HTTPException, OSError):
+        return None, "La imagen no se envió: no se encontró el archivo en el servidor."
+
+    try:
+        urn = linkedin_service.subir_imagen(
+            access_token=access_token,
+            persona_urn=persona_urn,
+            contenido=contenido,
+            nombre=ruta.name,
+        )
+    except httpx.HTTPError as error:
+        return None, f"La imagen no se envió: LinkedIn la rechazó ({error})."
+
+    return urn, None
+
+
 @router.post("/{vacante_id}/publicar-linkedin", response_model=ResultadoDePublicacion)
 def publicar_en_linkedin(
     vacante_id: UUID,
@@ -320,13 +381,18 @@ def publicar_en_linkedin(
             mensaje="LinkedIn no está configurado: se simuló la publicación. No salió nada a internet.",
         )
 
+    access_token = configuracion_service.cifrador().decrypt(token.access_token_cifrado.encode()).decode()
+    imagen_urn, aviso_de_imagen = _miniatura_para_linkedin(vacante, access_token, token.persona_urn)
+
     try:
-        access_token = configuracion_service.cifrador().decrypt(token.access_token_cifrado.encode()).decode()
         post_id = linkedin_service.publicar_en_el_muro(
             access_token=access_token,
             persona_urn=token.persona_urn,
             texto=texto,
             enlace=enlace,
+            titulo=vacante.asunto or vacante.titulo,
+            descripcion=vacante.post_cuerpo or vacante.descripcion,
+            imagen_urn=imagen_urn,
         )
     except httpx.HTTPError as error:
         vacante.post_estado = "error"
@@ -343,7 +409,101 @@ def publicar_en_linkedin(
         post_estado="publicado",
         linkedin_post_id=post_id,
         simulado=False,
-        mensaje="Publicado en LinkedIn.",
+        mensaje="Publicado en LinkedIn." + (f" {aviso_de_imagen}" if aviso_de_imagen else ""),
+    )
+
+
+def _token_usable_o_400(db: Session, usuario: Usuario) -> TokenLinkedIn:
+    """El token de quien pide, o un 400 que dice qué hacer."""
+    token = db.get(TokenLinkedIn, usuario.id)
+    if token is None or token.revocado or token.expira_en <= datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Conecta tu cuenta de LinkedIn en Configuración (o vuelve a conectarla: el acceso caducó)",
+        )
+    return token
+
+
+def _post_en_linkedin_o_400(vacante: Vacante) -> str:
+    """El URN del post, descartando el de las publicaciones simuladas.
+
+    Un id simulado no existe en LinkedIn: mandarlo daría un error feo en vez de
+    explicar que esa vacante nunca salió a internet.
+    """
+    if not vacante.linkedin_post_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Esta vacante no está publicada en LinkedIn."
+        )
+    if "simulado" in vacante.linkedin_post_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Esa publicación fue simulada: no existe en LinkedIn, así que no hay nada que cambiar allí.",
+        )
+    return vacante.linkedin_post_id
+
+
+@router.patch("/{vacante_id}/linkedin-post", response_model=ResultadoDePublicacion)
+def actualizar_post_en_linkedin(
+    vacante_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_roles("super_admin", "reclutador")),
+) -> ResultadoDePublicacion:
+    """Reescribe el texto del post con los datos que tiene hoy la vacante.
+
+    Es lo único que LinkedIn deja cambiar de un post publicado: ni el enlace ni la
+    imagen. Sirve para una errata o para que el post deje de contradecir a la vacante
+    después de editarla.
+    """
+    vacante = _vacante_o_404(db, vacante_id)
+    post_urn = _post_en_linkedin_o_400(vacante)
+    token = _token_usable_o_400(db, current_user)
+
+    access_token = configuracion_service.cifrador().decrypt(token.access_token_cifrado.encode()).decode()
+    texto = _texto_del_post(vacante, _url_publica(request, vacante))
+    try:
+        linkedin_service.actualizar_texto(access_token=access_token, post_urn=post_urn, texto=texto)
+    except httpx.HTTPError as error:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"LinkedIn rechazó el cambio: {error}")
+
+    return ResultadoDePublicacion(
+        post_estado=vacante.post_estado,
+        linkedin_post_id=post_urn,
+        simulado=False,
+        mensaje="El texto del post se actualizó en LinkedIn. El enlace y la imagen no se pueden cambiar.",
+    )
+
+
+@router.delete("/{vacante_id}/linkedin-post", response_model=ResultadoDePublicacion)
+def borrar_post_en_linkedin(
+    vacante_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_roles("super_admin", "reclutador")),
+) -> ResultadoDePublicacion:
+    """Borra el post de LinkedIn y devuelve la vacante a borrador.
+
+    El estado vuelve a `borrador` y se olvida el id: dejarlo como publicado sería
+    decir que hay algo en LinkedIn cuando ya no lo hay.
+    """
+    vacante = _vacante_o_404(db, vacante_id)
+    post_urn = _post_en_linkedin_o_400(vacante)
+    token = _token_usable_o_400(db, current_user)
+
+    access_token = configuracion_service.cifrador().decrypt(token.access_token_cifrado.encode()).decode()
+    try:
+        linkedin_service.borrar_post(access_token=access_token, post_urn=post_urn)
+    except httpx.HTTPError as error:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"LinkedIn rechazó el borrado: {error}")
+
+    vacante.linkedin_post_id = None
+    vacante.post_estado = "borrador"
+    vacante.post_publicado_en = None
+    db.commit()
+    return ResultadoDePublicacion(
+        post_estado="borrador",
+        linkedin_post_id=None,
+        simulado=False,
+        mensaje="El post se borró de LinkedIn y la vacante volvió a borrador.",
     )
 
 

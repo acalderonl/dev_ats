@@ -184,6 +184,30 @@ internet.
   ⚠️ El token de autoservicio dura ~60 días y **no hay refresh token** fuera del programa de
   partners: hay que volver a conectar.
 
+#### Qué se le manda a LinkedIn, y qué no se puede
+
+🔴 **La tarjeta del enlace hay que rellenarla a mano.** La documentación lo dice sin rodeos: la
+Posts API *«does not support URL scraping for article post creation»*. Mandando solo la URL, la
+tarjeta sale sin puesto, sin descripción y sin imagen. Por eso se envían `title`, `description` y
+`thumbnail`. Las etiquetas Open Graph de `/compartir` **siguen haciendo falta**, pero para el
+otro camino: el del compositor, donde LinkedIn sí las lee.
+
+La imagen del post se sube antes a `/rest/images` (dos pasos: registrar y mandar el archivo) y su
+URN va como miniatura. Si falla, **el post sale igual sin ella** y el aviso lo dice: publicar sin
+foto se ve peor, no publicar por la foto es peor todavía.
+
+⚠️ LinkedIn acepta **JPG, PNG y GIF**, no WebP, que nuestra subida sí admite. Una imagen WebP se
+guarda bien y se publica sin miniatura, con su aviso.
+
+De un post ya publicado solo se puede **reescribir el texto** (`PATCH`) o **borrarlo**
+(`DELETE`); el enlace y la imagen no. Los dos están en la tarjeta de la vacante.
+
+Lo que **no se puede** por mucho que esté en el formulario:
+
+- **Programar la publicación.** `lifecycleState` solo acepta `PUBLISHED` al crear: LinkedIn no
+  programa ni guarda borradores por API. La fase M1.6 la tiene que ejecutar un proceso nuestro.
+- **Leer estadísticas del post.** `r_member_social` es permiso restringido, solo para aprobados.
+
 - `correo_service.py`: dos conexiones a elegir, **Gmail/Workspace** (servidor y puerto fijos,
   contraseña de aplicación) o **cualquier servidor SMTP** (servidor, puerto, cifrado, usuario).
   Hay un endpoint que prueba la conexión sin enviar nada.

@@ -12,6 +12,7 @@ import {
   Mail,
   MessageCircle,
   Plus,
+  RefreshCw,
   Send,
   Settings2,
   Trash2,
@@ -301,6 +302,51 @@ export function VacantesView() {
     }
   }
 
+  /** Si el post existe de verdad en LinkedIn. Un id simulado no se puede tocar allí. */
+  function tienePostEnLinkedIn(vacante: Vacante): boolean {
+    return Boolean(vacante.linkedin_post_id && !vacante.linkedin_post_id.includes('simulado'))
+  }
+
+  /** Reescribe el texto del post con lo que dice hoy la vacante. */
+  async function actualizarPost(vacante: Vacante) {
+    setPublicandoId(vacante.id)
+    try {
+      const { mensaje } = await vacantesService.actualizarPostEnLinkedIn(vacante.id)
+      toast.success(mensaje)
+    } catch (err) {
+      toast.error(errorMessage(err))
+    } finally {
+      setPublicandoId(null)
+    }
+  }
+
+  /**
+   * Borra el post de LinkedIn.
+   *
+   * Se pregunta antes: es algo que ya vio gente y que no se deshace. Al borrarlo la
+   * vacante vuelve a borrador, porque decir "publicado" de algo que ya no existe
+   * sería mentir en la propia pantalla.
+   */
+  async function quitarDeLinkedIn(vacante: Vacante) {
+    const seguro = window.confirm(
+      `¿Borrar de LinkedIn el post de «${vacante.titulo}»?\n\n` +
+        'Desaparece del muro de quien lo publicó y no se puede deshacer. ' +
+        'La vacante vuelve a borrador y podrás volver a publicarla.',
+    )
+    if (!seguro) return
+
+    setPublicandoId(vacante.id)
+    try {
+      const { mensaje } = await vacantesService.borrarPostEnLinkedIn(vacante.id)
+      toast.success(mensaje)
+      await fetchVacantes()
+    } catch (err) {
+      toast.error(errorMessage(err))
+    } finally {
+      setPublicandoId(null)
+    }
+  }
+
   async function publicar(vacante: Vacante) {
     setPublicandoId(vacante.id)
     try {
@@ -509,6 +555,26 @@ export function VacantesView() {
                     )}
                     LinkedIn
                   </button>
+                )}
+                {tienePostEnLinkedIn(vacante) && (
+                  <>
+                    <button
+                      onClick={() => actualizarPost(vacante)}
+                      disabled={publicandoId === vacante.id}
+                      title="Reescribe el texto del post con los datos de hoy. El enlace y la imagen no se pueden cambiar."
+                      className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:text-slate-900 disabled:opacity-50"
+                    >
+                      <RefreshCw size={13} /> Actualizar post
+                    </button>
+                    <button
+                      onClick={() => quitarDeLinkedIn(vacante)}
+                      disabled={publicandoId === vacante.id}
+                      title="Borra el post de LinkedIn y devuelve la vacante a borrador"
+                      className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-red-600 shadow-sm transition-colors hover:border-red-300 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      <Trash2 size={13} /> Quitar de LinkedIn
+                    </button>
+                  </>
                 )}
                 {vacante.visibilidad !== 'publica' && (
                   <button

@@ -8,6 +8,74 @@ una funcionalidad que funcione.
 
 ---
 
+## 2026-10-29 — Sesión 13 · Lo que de verdad se le puede mandar a LinkedIn
+
+**Fase:** M1 — integraciones. Cierra el hueco entre lo que el formulario de la vacante recoge y
+lo que llegaba a LinkedIn.
+
+**La pregunta del dueño:** «de nuestro modal de nueva vacante, ¿qué más podemos usar con el
+token que ya tenemos conectado?». La respuesta salió de leer la documentación oficial, no de
+suponer: la Posts API y la Images API de LinkedIn.
+
+**Lo que se encontró al leerla, y que nadie había visto**
+
+🔴 **La tarjeta del enlace salía desnuda.** La documentación es literal: la Posts API *«does not
+support URL scraping for article post creation»*. Nosotros mandábamos solo la URL, así que el
+post automático habría salido con una tarjeta sin puesto, sin descripción y sin imagen. Y el
+matiz que lo hace confuso: las etiquetas Open Graph que montamos el 26 **sí sirven**, pero solo
+para el camino del compositor, donde LinkedIn lee la página. Por API hay que mandar `title`,
+`description` y `thumbnail` a mano. Es el cambio con más efecto visible de la sesión.
+
+🔴 **La imagen del post nunca salía.** `publicar_en_el_muro` aceptaba una imagen desde el primer
+día, pero nadie se la pasaba y no había quien la subiera. Todos los posts iban solo con texto.
+
+⚠️ **WebP.** Nuestra subida lo acepta; LinkedIn no (solo JPG, PNG y GIF). Una imagen WebP se
+guardaba bien y habría hecho fallar la publicación.
+
+**Lo construido**
+- Subida de la imagen a `/rest/images` (registrar + mandar el archivo) y su URN como miniatura
+  de la tarjeta, con título y descripción de la vacante.
+- Ningún problema con la imagen tumba el post: si falta el archivo, si es WebP o si LinkedIn la
+  rechaza, **sale igual sin miniatura** y el aviso lo dice. Publicar sin foto se ve peor; no
+  publicar por la foto es peor todavía.
+- En el texto, la fecha de cierre y etiquetas (`#Empleo`, el cargo y su clasificación), sin
+  tildes a propósito: una etiqueta con tilde y otra sin ella son dos etiquetas distintas, y quien
+  busca escribe la fácil.
+- `PATCH` y `DELETE` del post, con sus botones en la tarjeta: reescribir el texto —lo único que
+  LinkedIn deja cambiar— y borrarlo. Al borrarlo la vacante vuelve a **borrador**, porque decir
+  "publicado" de algo que ya no existe sería mentir en la propia pantalla. El borrado pregunta
+  antes: es algo que ya vio gente y no se deshace.
+- Una publicación **simulada** no se puede tocar en LinkedIn y se dice con esas palabras, en vez
+  de mandar un id inventado y recoger un error feo.
+
+**Lo que se confirmó que NO se puede, y conviene no volver a intentarlo**
+- **Programar.** `lifecycleState` solo acepta `PUBLISHED` al crear: LinkedIn no programa ni
+  guarda borradores por API. M1.6 la tiene que ejecutar un proceso nuestro.
+- **Leer estadísticas** del post: `r_member_social` es permiso restringido.
+- **Publicar en la página de la ANAI**: sigue necesitando ser partner.
+
+**Un error propio, corregido por una prueba**
+La prueba de la miniatura apuntaba a una imagen que no existía en disco, y pasó a verde
+diciendo que no se envió ninguna. Tenía razón la prueba, no el código: se cambió para escribir
+una imagen de verdad en una carpeta temporal.
+
+**Verificado**
+- 11 pruebas nuevas; la suite queda en 195 en verde (eran 184).
+- La vista previa del post, pedida a la API con una vacante real, devuelve ya la fecha de cierre
+  y `#Empleo #DesarrolladorFullStack #TalentoHumano`.
+- `black`, `flake8` y `tsc` limpios.
+
+**Pendiente / avisos**
+- 🔴 **Nada de esto se ha probado contra LinkedIn de verdad.** Publicar haría un post real en el
+  muro del dueño, y eso no es mío para pulsarlo. Lo comprobado es todo lo anterior a la llamada:
+  qué se arma, qué se manda y qué pasa cuando falla. La primera publicación real dirá si la
+  miniatura y la tarjeta salen como esperamos.
+- El texto del post no comprueba el límite de caracteres de LinkedIn. Con una descripción muy
+  larga, la API respondería `FIELD_LENGTH_TOO_LONG`.
+
+---
+
+
 ## 2026-10-28 — Sesión 12 · El formulario del candidato, entero
 
 **Fase:** **M2.1 cerrada** (el CV ya no se tira) y el formulario de postulación rehecho contra

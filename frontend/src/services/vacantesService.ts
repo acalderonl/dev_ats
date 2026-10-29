@@ -43,6 +43,16 @@ export const vacantesService = {
   /** Vía sin OAuth: prepara el texto y el enlace para publicar a mano. */
   compartirEnLinkedIn: (id: string) =>
     apiPost<ParaCompartirEnLinkedIn>(`/vacantes/${id}/compartir-linkedin`),
+  /** Reescribe el texto del post en LinkedIn con los datos de hoy. */
+  actualizarPostEnLinkedIn: (id: string) =>
+    apiPatch<{ post_estado: EstadoDelPost; linkedin_post_id: string | null; simulado: boolean; mensaje: string }>(
+      `/vacantes/${id}/linkedin-post`,
+    ),
+  /** Lo borra de LinkedIn y devuelve la vacante a borrador. */
+  borrarPostEnLinkedIn: (id: string) =>
+    apiDelete<{ post_estado: EstadoDelPost; linkedin_post_id: string | null; simulado: boolean; mensaje: string }>(
+      `/vacantes/${id}/linkedin-post`,
+    ),
   publicarEnLinkedIn: (id: string) =>
     apiPost<{ post_estado: EstadoDelPost; linkedin_post_id: string | null; simulado: boolean; mensaje: string }>(
       `/vacantes/${id}/publicar-linkedin`,

@@ -1,6 +1,6 @@
 # Estado del proyecto — dónde estamos AHORA
 
-> Última actualización: **2026-10-28** · Sesiones: **12** (en 10 días) · Pruebas: **184 en verde**
+> Última actualización: **2026-10-29** · Sesiones: **13** (en 11 días) · Pruebas: **195 en verde**
 > Este archivo se lee al empezar cada sesión. Si algo aquí ya no es cierto, se corrige antes de seguir.
 
 ## En una línea
@@ -45,7 +45,7 @@ Leyenda: 🟢 base funcionando · 🟡 base funcionando con huecos conocidos · 
 
 | Módulo | Estado | Verificado | Siguiente fase | Etapa |
 |---|---|---|---|---|
-| **M1** Cargos, vacantes e integraciones | 🟢 | Cargos y vacantes: crear, editar y estados, **con pruebas**. Imagen del post y cifrado de secretos comprobados en la base. Compartir en LinkedIn **sin OAuth**: medido que el rastreador no ve la SPA, comprobado que `/compartir` sí le da las etiquetas y que la vacante queda como `compartido`. Conectar LinkedIn pegando un token del portal: **con pruebas**, incluido que un token pegado publica de verdad en vez de simular | M1.6 publicar a la hora programada | 4 |
+| **M1** Cargos, vacantes e integraciones | 🟢 | Cargos y vacantes: crear, editar y estados, **con pruebas**. Compartir en LinkedIn **sin OAuth**: medido que el rastreador no ve la SPA y que `/compartir` sí le da las etiquetas. Conectar pegando un token del portal. Publicación por API con la tarjeta completa (título, descripción y miniatura) y gestión del post (reescribir/borrar), **con pruebas**; ⚠️ nada probado todavía contra LinkedIn de verdad | M1.6 publicar a la hora programada | 4 |
 | **M2** Portal público y perfil del candidato | 🟢 | Formulario de 3 pasos con el esquema entero: comprobado en el navegador que se envía y que cae en las cuatro tablas. Foto y CV guardados en carpeta privada, **con pruebas** de que `/media` no los sirve | M2.2 el robot de ETL | 3 |
 | **M3** Pipeline de reclutamiento | 🟡 | Reglas de transición, **con pruebas** | M3.3 puntuación de coincidencia | 4 |
 | **M4** Directorio de contactos | 🟡 | Búsqueda, **con pruebas** | M4.1 exportar de verdad | 4 |

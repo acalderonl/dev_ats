@@ -221,30 +221,81 @@ def _publicar_simulado(vacante_id: uuid.UUID, titulo: str) -> str:
     return f"urn:li:share:simulado-{digest}"
 
 
+# Lo que acepta la API de imágenes de LinkedIn. **WebP no está**, aunque nuestra
+# subida sí lo admita para la imagen del post: en ese caso se publica sin miniatura y
+# se dice, en vez de tumbar la publicación entera por la foto.
+FORMATOS_DE_IMAGEN_EN_LINKEDIN = {".jpg", ".jpeg", ".png", ".gif"}
+
+# Topes de la tarjeta. Más largo lo corta LinkedIn por su cuenta; cortarlo aquí deja
+# el corte donde se decidió y no a mitad de palabra.
+LARGO_DEL_TITULO = 200
+LARGO_DE_LA_DESCRIPCION = 300
+
+
+def subir_imagen(*, access_token: str, persona_urn: str, contenido: bytes, nombre: str) -> str:
+    """Sube una imagen y devuelve su URN, para usarla en un post.
+
+    Son dos pasos porque LinkedIn no acepta el archivo en la misma llamada: primero se
+    registra la subida y devuelve una URL, y luego se manda el archivo a esa URL.
+    """
+    with httpx.Client(timeout=60) as cliente:
+        registro = cliente.post(
+            f"{IMAGENES}?action=initializeUpload",
+            json={"initializeUploadRequest": {"owner": persona_urn}},
+            headers={**CABECERAS_BASE, "Authorization": f"Bearer {access_token}"},
+        )
+        registro.raise_for_status()
+        valor = registro.json()["value"]
+
+        subida = cliente.put(
+            valor["uploadUrl"],
+            content=contenido,
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        subida.raise_for_status()
+
+    _ = nombre  # El nombre no viaja: LinkedIn identifica la imagen por su URN.
+    return valor["image"]
+
+
 def publicar_en_el_muro(
     *,
     access_token: str,
     persona_urn: str,
     texto: str,
     enlace: str | None = None,
+    titulo: str | None = None,
+    descripcion: str | None = None,
     imagen_urn: str | None = None,
 ) -> str:
-    """Publica y devuelve el URN del post."""
-    contenido: dict = {}
-    if imagen_urn:
-        contenido = {"media": {"id": imagen_urn}}
-    elif enlace:
-        contenido = {"article": {"source": enlace}}
+    """Publica y devuelve el URN del post.
 
-    cuerpo = {
+    El título, la descripción y la miniatura **hay que mandarlos**: la documentación
+    de LinkedIn dice que la Posts API *no* lee la URL para componer la tarjeta («does
+    not support URL scraping for article post creation»). Mandando solo el enlace, la
+    tarjeta sale desnuda. Las etiquetas Open Graph de `/compartir` siguen haciendo
+    falta, pero para el otro camino: el del compositor, donde LinkedIn sí las lee.
+    """
+    cuerpo: dict = {
         "author": persona_urn,
         "commentary": texto,
         "visibility": "PUBLIC",
         "distribution": {"feedDistribution": "MAIN_FEED"},
         "lifecycleState": "PUBLISHED",
     }
-    if contenido:
-        cuerpo["content"] = contenido
+
+    if enlace:
+        articulo: dict = {"source": enlace}
+        if titulo:
+            articulo["title"] = titulo[:LARGO_DEL_TITULO]
+        if descripcion:
+            articulo["description"] = descripcion[:LARGO_DE_LA_DESCRIPCION]
+        if imagen_urn:
+            articulo["thumbnail"] = imagen_urn
+        cuerpo["content"] = {"article": articulo}
+    elif imagen_urn:
+        # Sin enlace que enmarcar, la imagen es el contenido del post.
+        cuerpo["content"] = {"media": {"id": imagen_urn, "altText": titulo or ""}}
 
     with httpx.Client(timeout=30) as cliente:
         respuesta = cliente.post(
@@ -255,3 +306,41 @@ def publicar_en_el_muro(
         respuesta.raise_for_status()
         # El id viene en la cabecera, no en el cuerpo (el cuerpo suele venir vacío).
         return respuesta.headers.get("x-restli-id") or respuesta.json().get("id", "")
+
+
+def actualizar_texto(*, access_token: str, post_urn: str, texto: str) -> None:
+    """Cambia el texto de un post ya publicado.
+
+    Es lo único que la API deja reescribir del contenido: ni el enlace ni la imagen.
+    Sirve para arreglar una errata o para volver a sincronizar el post con la vacante
+    después de editarla.
+    """
+    with httpx.Client(timeout=30) as cliente:
+        respuesta = cliente.post(
+            f"{POSTS}/{quote(post_urn, safe='')}",
+            json={"patch": {"$set": {"commentary": texto}}},
+            headers={
+                **CABECERAS_BASE,
+                "Authorization": f"Bearer {access_token}",
+                "X-RestLi-Method": "PARTIAL_UPDATE",
+            },
+        )
+        respuesta.raise_for_status()
+
+
+def borrar_post(*, access_token: str, post_urn: str) -> None:
+    """Borra el post de LinkedIn.
+
+    LinkedIn responde 204 también si ya no existía, así que llamar dos veces no es un
+    error: deja de existir, que es lo que se pedía.
+    """
+    with httpx.Client(timeout=30) as cliente:
+        respuesta = cliente.delete(
+            f"{POSTS}/{quote(post_urn, safe='')}",
+            headers={
+                **CABECERAS_BASE,
+                "Authorization": f"Bearer {access_token}",
+                "X-RestLi-Method": "DELETE",
+            },
+        )
+        respuesta.raise_for_status()
