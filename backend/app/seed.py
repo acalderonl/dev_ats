@@ -15,6 +15,7 @@ from app.models.cargo import Cargo
 from app.models.cargo_educacion import CargoAreaAcademica, CargoNivelEducacion
 from app.models.catalogos_educacion import AreaAcademica, NivelEducacion, TituloAcademico
 from app.models.clasificacion_cargo import ClasificacionCargo
+from app.models.departamento import Departamento
 from app.models.nombre_cargo import NombreCargo
 from app.models.pregunta_filtro import PreguntaFiltro
 from app.models.rol import Rol
@@ -34,6 +35,7 @@ DEMO_CARGOS = [
     {
         "nombre": "Desarrollador Backend Senior",
         "clasificacion": "Tecnología",
+        "departamento": "Tecnología e Innovación",
         "tiene_personal_a_cargo": False,
         "mision": "Diseñar y mantener los servicios del lado del servidor, garantizando que la "
         "plataforma sea estable, segura y fácil de evolucionar.",
@@ -53,6 +55,7 @@ DEMO_CARGOS = [
     {
         "nombre": "Diseñador UX/UI",
         "clasificacion": "Producto",
+        "departamento": "Producto y Diseño",
         "tiene_personal_a_cargo": False,
         "mision": "Diseñar interfaces claras y accesibles que permitan a cada usuario completar su "
         "tarea sin fricción, en cualquier dispositivo.",
@@ -247,6 +250,9 @@ def seed_demo_cargos(db: Session) -> None:
         cargo = Cargo(
             nombre_id=_catalogo(db, NombreCargo, data["nombre"]).id,
             clasificacion_id=_catalogo(db, ClasificacionCargo, data["clasificacion"]).id,
+            # Los de demo que no digan departamento caen en «Sin asignar», que ya existe
+            # por la migración; los que lo digan lo crean de paso.
+            departamento_id=_catalogo(db, Departamento, data.get("departamento", "Sin asignar")).id,
             tiene_personal_a_cargo=data["tiene_personal_a_cargo"],
             mision=data["mision"],
             # La primera actividad queda marcada como favorita, para que el demo muestre

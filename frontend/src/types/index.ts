@@ -47,10 +47,24 @@ export interface CompetenciaDelCargo {
   deseado: boolean
 }
 
+/** Unidad organizativa. Un cargo pertenece a exactamente uno. */
+export interface Departamento {
+  id: number
+  nombre: string
+  descripcion: string | null
+  activo: boolean
+  /** «Sin asignar»: no se renombra ni se desactiva; es donde caen los cargos huérfanos. */
+  es_sistema: boolean
+  /** Cuántos cargos cuelgan de él. */
+  cargos: number
+}
+
 export interface Cargo {
   id: number
   nombre_id: number
   nombre: string
+  departamento_id: number
+  departamento: string
   tiene_personal_a_cargo: boolean
   clasificacion_id: number | null
   clasificacion: string | null

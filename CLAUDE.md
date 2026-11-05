@@ -65,7 +65,8 @@ la imagen, salvo que cambien las dependencias (`requirements.txt` / `package.jso
 backend/app/
 ├── api/v1/        # Routers REST: auth, users, cargos, catalogos, competencias, vacantes,
 │                  # public, postulaciones, evaluaciones (anidado bajo /postulaciones),
-│                  # contactos, dashboard, configuracion, media, compartir (este último fuera de /api/v1)
+│                  # contactos, dashboard, configuracion, media, departamentos,
+│                  # compartir (este último fuera de /api/v1)
 ├── core/          # config.py (Settings + clave de cifrado), database.py, security.py (JWT/RBAC), utils.py (slug)
 ├── models/        # Modelos SQLAlchemy 2.0, uno por tabla (roles, usuarios, cargos, ...)
 ├── schemas/       # Pydantic: *Create / *Out por recurso
@@ -87,6 +88,11 @@ no una omisión.
 Un cargo es un **descriptivo de puesto**: identificación, misión, actividades (con favoritas, que
 suben al principio), educación formal, formación, habilidades blandas y experiencia requerida.
 
+- Un cargo pertenece a exactamente un **departamento** (`/api/v1/departamentos`, pantalla propia).
+  No es lo mismo que la *clasificación*: aquella dice qué tipo de puesto es; el departamento dice
+  **dónde está** en la institución, y la pantalla de Cargos se agrupa por él. «Sin asignar» lo
+  crea la migración 0009, no se renombra ni se desactiva, y es donde caen los cargos cuando se
+  desactiva su departamento. Los departamentos **se desactivan, no se borran**.
 - Los valores repetibles viven en **catálogos** (`/api/v1/catalogos/{catalogo}`): nombres de cargo,
   clasificaciones, niveles de educación, títulos y áreas académicas. Un router genérico los sirve a
   todos; añadir uno nuevo es una entrada en el diccionario `CATALOGOS` más su tabla.

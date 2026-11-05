@@ -3,6 +3,7 @@ import type { Actividad, Cargo, EstadoEducacion, ExperienciaRequerida } from '@/
 
 export interface CargoCreate {
   nombre_id: number
+  departamento_id: number
   tiene_personal_a_cargo: boolean
   clasificacion_id: number | null
   mision: string | null

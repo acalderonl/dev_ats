@@ -89,6 +89,7 @@ def test_agrupa_las_competencias_por_la_clasificacion_del_cargo(client, reclutad
         f"/api/v1/cargos/{cargo['id']}",
         json={
             "nombre_id": cargo["nombre_id"],
+            "departamento_id": cargo["departamento_id"],
             "clasificacion_id": cargo["clasificacion_id"],
             "competencias": [{"competencia_id": competencia["id"], "requerido": True, "deseado": False}],
         },
@@ -130,6 +131,7 @@ def test_separa_academicas_de_blandas(client, reclutador_headers, unique_suffix,
         f"/api/v1/cargos/{cargo['id']}",
         json={
             "nombre_id": cargo["nombre_id"],
+            "departamento_id": cargo["departamento_id"],
             "clasificacion_id": cargo["clasificacion_id"],
             "competencias": [{"competencia_id": blanda["id"], "requerido": True, "deseado": False}],
         },

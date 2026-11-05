@@ -8,6 +8,7 @@ import {
   ClipboardCheck,
   ShieldCheck,
   Building2,
+  FolderTree,
   Settings,
   X,
 } from 'lucide-react'
@@ -22,6 +23,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['super_admin', 'reclutador', 'entrevistador'] },
+  { to: '/departamentos', label: 'Departamentos', icon: FolderTree, roles: ['super_admin', 'reclutador'] },
   { to: '/cargos', label: 'Cargos', icon: Building2, roles: ['super_admin', 'reclutador'] },
   { to: '/vacantes', label: 'Vacantes', icon: Briefcase, roles: ['super_admin', 'reclutador'] },
   { to: '/pipeline', label: 'Pipeline', icon: KanbanSquare, roles: ['super_admin', 'reclutador'] },

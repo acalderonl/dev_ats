@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Trash2, Loader2, Settings, Users, Star } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Plus, Trash2, Loader2, Settings, Users, Star, Building2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { departamentosService } from '@/services/departamentosService'
 import { Card } from '@/components/common/Card'
 import { Badge } from '@/components/common/Badge'
 import { Modal } from '@/components/common/Modal'
@@ -19,6 +21,7 @@ import {
   type CatalogoItem,
   type CatalogoTipo,
   type CompetenciaDelCargo,
+  type Departamento,
   type EstadoEducacion,
   type ExperienciaRequerida,
 } from '@/types'
@@ -48,6 +51,7 @@ function actividadNueva(): ActividadForm {
 function formDesdeCargo(cargo: Cargo) {
   return {
     nombre_id: cargo.nombre_id as number | null,
+    departamento_id: cargo.departamento_id as number | null,
     tiene_personal_a_cargo: cargo.tiene_personal_a_cargo,
     clasificacion_id: cargo.clasificacion_id,
     mision: cargo.mision ?? '',
@@ -79,6 +83,7 @@ function filaVacia(conEstado = false): FilaDeCatalogo {
 
 const FORM_VACIO = {
   nombre_id: null as number | null,
+  departamento_id: null as number | null,
   tiene_personal_a_cargo: false,
   clasificacion_id: null as number | null,
   mision: '',
@@ -198,6 +203,32 @@ export function CargosView() {
   const inactivos = useMemo(() => cargos.filter((c) => !c.activo), [cargos])
   const visibles = pestana === 'activos' ? activos : inactivos
 
+  // Los departamentos no viven en el store: solo los usa esta pantalla y la suya.
+  const [departamentos, setDepartamentos] = useState<Departamento[]>([])
+  useEffect(() => {
+    departamentosService
+      .list()
+      .then(setDepartamentos)
+      .catch((err) => toast.error(errorMessage(err)))
+  }, [])
+  const departamentosActivos = useMemo(() => departamentos.filter((d) => d.activo), [departamentos])
+
+  /**
+   * Los cargos agrupados por departamento, en el orden de la lista de departamentos
+   * («Sin asignar» al final). Un cargo cuyo departamento no esté en la lista todavía
+   * —recién creado en la otra pantalla— cae en un grupo con su propio nombre, no se
+   * pierde.
+   */
+  const grupos = useMemo(() => {
+    const porId = new Map<number, { nombre: string; cargos: Cargo[] }>()
+    for (const d of departamentos) porId.set(d.id, { nombre: d.nombre, cargos: [] })
+    for (const c of visibles) {
+      if (!porId.has(c.departamento_id)) porId.set(c.departamento_id, { nombre: c.departamento, cargos: [] })
+      porId.get(c.departamento_id)!.cargos.push(c)
+    }
+    return [...porId.values()].filter((g) => g.cargos.length > 0)
+  }, [departamentos, visibles])
+
   useEffect(() => {
     Promise.all([
       fetchCargos(),
@@ -217,9 +248,14 @@ export function CargosView() {
       toast.error('Elige el nombre del cargo')
       return
     }
+    if (!form.departamento_id) {
+      toast.error('Elige el departamento: todo cargo pertenece a uno')
+      return
+    }
     setGuardando(true)
     const datos = {
       nombre_id: form.nombre_id,
+      departamento_id: form.departamento_id,
       tiene_personal_a_cargo: form.tiene_personal_a_cargo,
       clasificacion_id: form.clasificacion_id,
       mision: form.mision.trim() || null,
@@ -368,8 +404,18 @@ export function CargosView() {
           </p>
         </Card>
       ) : (
+        /* Contenido por departamentos: un bloque por cada uno, con sus cargos dentro. */
+        grupos.map((grupo) => (
+          <section key={grupo.nombre} className="space-y-3">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <Building2 size={15} className="text-slate-400" />
+              {grupo.nombre}
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+                {grupo.cargos.length}
+              </span>
+            </h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {visibles.map((cargo) => (
+          {grupo.cargos.map((cargo) => (
             <Card
               key={cargo.id}
               role="button"
@@ -425,6 +471,8 @@ export function CargosView() {
             </Card>
           ))}
         </div>
+          </section>
+        ))
       )}
 
       {/* ---------- Nuevo cargo ---------- */}
@@ -448,6 +496,38 @@ export function CargosView() {
               items={catalogos['nombres-cargo']}
               onGestionar={() => setGestionando('nombres-cargo')}
             />
+
+            <div>
+              <div className="mb-1 flex items-center justify-between">
+                <label className="text-sm font-medium text-slate-700">
+                  Departamento <span className="text-red-500">*</span>
+                </label>
+                {/* Se administran en su propia pantalla, no con el engranaje: tienen
+                    descripción y cargos colgando, y desactivar uno mueve cargos. */}
+                <Link
+                  to="/departamentos"
+                  className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline"
+                >
+                  <Building2 size={12} /> Administrar
+                </Link>
+              </div>
+              <select
+                required
+                value={form.departamento_id ?? ''}
+                onChange={(e) => setForm({ ...form, departamento_id: e.target.value ? Number(e.target.value) : null })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              >
+                <option value="">Selecciona...</option>
+                {departamentosActivos.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.nombre}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-500">
+                Dónde está el puesto en la institución. No es lo mismo que la clasificación.
+              </p>
+            </div>
 
             <label className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-slate-200 px-3 py-2.5">
               <input

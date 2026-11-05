@@ -4,6 +4,11 @@ def _crear_nombre(client, headers, nombre: str) -> int:
     return respuesta.json()["id"]
 
 
+def _sin_asignar(client, headers) -> int:
+    """Desde la migración 0009 un cargo necesita departamento; el de respaldo siempre existe."""
+    return next(d["id"] for d in client.get("/api/v1/departamentos", headers=headers).json() if d["es_sistema"])
+
+
 def test_crear_cargo_con_mision_y_actividades(client, reclutador_headers, unique_suffix):
     nombre_id = _crear_nombre(client, reclutador_headers, f"Jefe de Planta {unique_suffix}")
 
@@ -11,6 +16,7 @@ def test_crear_cargo_con_mision_y_actividades(client, reclutador_headers, unique
         "/api/v1/cargos",
         json={
             "nombre_id": nombre_id,
+            "departamento_id": _sin_asignar(client, reclutador_headers),
             "tiene_personal_a_cargo": True,
             "mision": "Garantizar que la planta produzca en los plazos comprometidos.",
             "actividades": [
@@ -41,6 +47,7 @@ def test_las_actividades_en_blanco_no_se_guardan(client, reclutador_headers, uni
         "/api/v1/cargos",
         json={
             "nombre_id": nombre_id,
+            "departamento_id": _sin_asignar(client, reclutador_headers),
             "actividades": [
                 {"texto": "Actividad real", "favorita": False},
                 {"texto": "", "favorita": False},
@@ -62,6 +69,7 @@ def test_las_actividades_favoritas_se_guardan_primero(client, reclutador_headers
         "/api/v1/cargos",
         json={
             "nombre_id": nombre_id,
+            "departamento_id": _sin_asignar(client, reclutador_headers),
             "actividades": [
                 {"texto": "Primera normal", "favorita": False},
                 {"texto": "Destacada A", "favorita": True},
@@ -89,6 +97,7 @@ def test_experiencia_y_competencias_se_guardan(client, reclutador_headers, uniqu
         "/api/v1/cargos",
         json={
             "nombre_id": nombre_id,
+            "departamento_id": _sin_asignar(client, reclutador_headers),
             "experiencia_requerida": "3_a_5",
             "competencias": [{"competencia_id": competencia["id"], "requerido": False, "deseado": True}],
         },
@@ -120,6 +129,7 @@ def test_educacion_formal_admite_dos_de_cada_uno(client, reclutador_headers, uni
         "/api/v1/cargos",
         json={
             "nombre_id": nombre_id,
+            "departamento_id": _sin_asignar(client, reclutador_headers),
             "niveles_educacion": [
                 {"nivel_id": niveles[0]["id"], "estado": "completa"},
                 {"nivel_id": niveles[1]["id"], "estado": "en_curso"},
@@ -147,6 +157,7 @@ def test_mas_de_dos_niveles_se_rechaza(client, reclutador_headers, unique_suffix
         "/api/v1/cargos",
         json={
             "nombre_id": nombre_id,
+            "departamento_id": _sin_asignar(client, reclutador_headers),
             "niveles_educacion": [{"nivel_id": n["id"], "estado": "completa"} for n in niveles[:3]],
         },
         headers=reclutador_headers,
@@ -162,6 +173,7 @@ def test_el_mismo_nivel_dos_veces_se_rechaza(client, reclutador_headers, unique_
         "/api/v1/cargos",
         json={
             "nombre_id": nombre_id,
+            "departamento_id": _sin_asignar(client, reclutador_headers),
             "niveles_educacion": [
                 {"nivel_id": niveles[0]["id"], "estado": "completa"},
                 {"nivel_id": niveles[0]["id"], "estado": "en_curso"},
@@ -178,7 +190,11 @@ def test_mas_de_dos_titulos_se_rechaza(client, reclutador_headers, unique_suffix
 
     respuesta = client.post(
         "/api/v1/cargos",
-        json={"nombre_id": nombre_id, "titulos_ids": [t["id"] for t in titulos[:3]]},
+        json={
+            "nombre_id": nombre_id,
+            "departamento_id": _sin_asignar(client, reclutador_headers),
+            "titulos_ids": [t["id"] for t in titulos[:3]],
+        },
         headers=reclutador_headers,
     )
     assert respuesta.status_code == 422
@@ -191,6 +207,7 @@ def test_estado_educacion_invalido_se_rechaza(client, reclutador_headers, unique
         "/api/v1/cargos",
         json={
             "nombre_id": nombre_id,
+            "departamento_id": _sin_asignar(client, reclutador_headers),
             "niveles_educacion": [{"nivel_id": niveles[0]["id"], "estado": "a_medias"}],
         },
         headers=reclutador_headers,
@@ -205,6 +222,7 @@ def test_checklist_de_experiencia_se_guarda(client, reclutador_headers, unique_s
         "/api/v1/cargos",
         json={
             "nombre_id": nombre_id,
+            "departamento_id": _sin_asignar(client, reclutador_headers),
             "experiencia_empresas_similares": True,
             "experiencia_cargos_similares": False,
             "experiencia_interna_otros_cargos": True,
@@ -226,6 +244,7 @@ def test_editar_reemplaza_la_educacion(client, reclutador_headers, unique_suffix
 
     cuerpo = {
         "nombre_id": cargo["nombre_id"],
+        "departamento_id": cargo["departamento_id"],
         "niveles_educacion": [
             {"nivel_id": niveles[0]["id"], "estado": "completa"},
             {"nivel_id": niveles[1]["id"], "estado": "completa"},
@@ -255,6 +274,7 @@ def test_una_competencia_no_puede_ser_requerida_y_deseada(client, reclutador_hea
         "/api/v1/cargos",
         json={
             "nombre_id": nombre_id,
+            "departamento_id": _sin_asignar(client, reclutador_headers),
             "competencias": [{"competencia_id": competencia["id"], "requerido": True, "deseado": True}],
         },
         headers=reclutador_headers,
@@ -266,7 +286,11 @@ def test_experiencia_invalida_se_rechaza(client, reclutador_headers, unique_suff
     nombre_id = _crear_nombre(client, reclutador_headers, f"Cargo Exp {unique_suffix}")
     respuesta = client.post(
         "/api/v1/cargos",
-        json={"nombre_id": nombre_id, "experiencia_requerida": "20_anios"},
+        json={
+            "nombre_id": nombre_id,
+            "departamento_id": _sin_asignar(client, reclutador_headers),
+            "experiencia_requerida": "20_anios",
+        },
         headers=reclutador_headers,
     )
     assert respuesta.status_code == 422
@@ -284,6 +308,7 @@ def test_editar_cargo_reemplaza_su_contenido(client, reclutador_headers, unique_
         f"/api/v1/cargos/{cargo['id']}",
         json={
             "nombre_id": cargo["nombre_id"],
+            "departamento_id": cargo["departamento_id"],
             "mision": "Misión nueva",
             "actividades": [{"texto": "Actividad editada", "favorita": True}],
             "experiencia_requerida": "hasta_1",
@@ -313,6 +338,7 @@ def test_editar_no_duplica_competencias(client, reclutador_headers, unique_suffi
 
     cuerpo = {
         "nombre_id": cargo["nombre_id"],
+        "departamento_id": cargo["departamento_id"],
         "competencias": [{"competencia_id": competencia["id"], "requerido": True, "deseado": False}],
     }
     client.put(f"/api/v1/cargos/{cargo['id']}", json=cuerpo, headers=reclutador_headers)
@@ -323,7 +349,11 @@ def test_editar_no_duplica_competencias(client, reclutador_headers, unique_suffi
 
 
 def test_editar_un_cargo_inexistente_da_404(client, reclutador_headers):
-    respuesta = client.put("/api/v1/cargos/999999", json={"nombre_id": 1}, headers=reclutador_headers)
+    respuesta = client.put(
+        "/api/v1/cargos/999999",
+        json={"nombre_id": 1, "departamento_id": _sin_asignar(client, reclutador_headers)},
+        headers=reclutador_headers,
+    )
     assert respuesta.status_code == 404
 
 
@@ -334,7 +364,11 @@ def test_editar_requiere_autenticacion(client, unique_suffix, crear_cargo):
 
 
 def test_crear_cargo_con_nombre_inexistente_falla(client, reclutador_headers):
-    respuesta = client.post("/api/v1/cargos", json={"nombre_id": 999999}, headers=reclutador_headers)
+    respuesta = client.post(
+        "/api/v1/cargos",
+        json={"nombre_id": 999999, "departamento_id": _sin_asignar(client, reclutador_headers)},
+        headers=reclutador_headers,
+    )
     assert respuesta.status_code == 400
     assert "catálogo" in respuesta.json()["detail"]
 

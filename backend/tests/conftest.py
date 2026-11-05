@@ -154,6 +154,12 @@ def crear_cargo(client: TestClient, reclutador_headers: dict[str, str]):
             assert respuesta_clasificacion.status_code == 201, respuesta_clasificacion.text
             clasificacion_id = respuesta_clasificacion.json()["id"]
 
+        # Un cargo necesita departamento desde la migración 0009. «Sin asignar» lo crea
+        # la propia migración, así que siempre hay uno al que agarrarse.
+        if "departamento_id" not in campos:
+            departamentos = client.get("/api/v1/departamentos", headers=reclutador_headers).json()
+            campos["departamento_id"] = next(d["id"] for d in departamentos if d["es_sistema"])
+
         payload = {
             "nombre_id": respuesta_nombre.json()["id"],
             "clasificacion_id": clasificacion_id,

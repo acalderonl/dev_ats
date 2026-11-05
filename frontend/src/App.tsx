@@ -3,6 +3,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { LoginView } from '@/views/LoginView'
 import { DashboardView } from '@/views/DashboardView'
 import { CargosView } from '@/views/CargosView'
+import { DepartamentosView } from '@/views/DepartamentosView'
 import { VacantesView } from '@/views/VacantesView'
 import { PipelineView } from '@/views/PipelineView'
 import { ContactosView } from '@/views/ContactosView'
@@ -22,6 +23,7 @@ export default function App() {
 
       <Route element={<AppLayout />}>
         <Route path="/" element={<DashboardView />} />
+        <Route path="/departamentos" element={<DepartamentosView />} />
         <Route path="/cargos" element={<CargosView />} />
         <Route path="/vacantes" element={<VacantesView />} />
         <Route path="/pipeline" element={<PipelineView />} />

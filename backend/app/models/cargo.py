@@ -14,6 +14,9 @@ class Cargo(Base):
 
     # 1. Identificación del puesto
     nombre_id: Mapped[int] = mapped_column(ForeignKey("nombres_cargo.id"), nullable=False)
+    # Dónde está el puesto en la institución. Obligatorio: la migración 0009 puso los
+    # cargos existentes en «Sin asignar» para que ninguno quedara sin sitio.
+    departamento_id: Mapped[int] = mapped_column(ForeignKey("departamentos.id"), nullable=False, index=True)
     tiene_personal_a_cargo: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     clasificacion_id: Mapped[int | None] = mapped_column(ForeignKey("clasificaciones_cargo.id"), nullable=True)
 
@@ -46,6 +49,7 @@ class Cargo(Base):
         back_populates="cargo", cascade="all, delete-orphan", order_by="CargoAreaAcademica.orden"
     )
     clasificacion_catalogo: Mapped["ClasificacionCargo | None"] = relationship(back_populates="cargos")  # noqa: F821
+    departamento: Mapped["Departamento"] = relationship(back_populates="cargos")  # noqa: F821
     competencias: Mapped[list["CargoCompetencia"]] = relationship(  # noqa: F821
         back_populates="cargo", cascade="all, delete-orphan"
     )

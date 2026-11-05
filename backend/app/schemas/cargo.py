@@ -84,6 +84,8 @@ def _sin_repetidos(ids: list[int], etiqueta: str) -> list[int]:
 
 class CargoCreate(BaseModel):
     nombre_id: int
+    # Obligatorio: un cargo pertenece a exactamente un departamento.
+    departamento_id: int
     tiene_personal_a_cargo: bool = False
     clasificacion_id: int | None = None
     mision: str | None = None
@@ -127,6 +129,8 @@ class CargoOut(BaseModel):
     id: int
     nombre_id: int
     nombre: str
+    departamento_id: int
+    departamento: str
     tiene_personal_a_cargo: bool
     clasificacion_id: int | None
     clasificacion: str | None

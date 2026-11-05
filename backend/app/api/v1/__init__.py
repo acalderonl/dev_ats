@@ -9,6 +9,7 @@ from app.api.v1 import (
     configuracion,
     contactos,
     dashboard,
+    departamentos,
     evaluaciones,
     media,
     postulaciones,
@@ -34,3 +35,4 @@ api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboar
 api_router.include_router(configuracion.router, prefix="/configuracion", tags=["Configuración"])
 api_router.include_router(media.router, prefix="/media", tags=["Medios"])
 api_router.include_router(archivos.router, prefix="/archivos", tags=["Archivos de candidatos"])
+api_router.include_router(departamentos.router, prefix="/departamentos", tags=["Departamentos"])

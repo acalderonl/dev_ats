@@ -8,6 +8,59 @@ una funcionalidad que funcione.
 
 ---
 
+## 2026-11-04 — Sesión 15 · Departamentos: el primer tramo de la nueva estructura
+
+**Fase:** M1 — Cargos. Primer tramo de la reestructuración que pidió el dueño:
+`Departamento → Cargos → Vacantes → Convocatorias → Postulantes`. Hoy, Departamentos de
+punta a punta. Las convocatorias son el tramo siguiente y el grande.
+
+**Las decisiones se tomaron antes de tocar nada**, con cuatro preguntas al dueño:
+- **Convocatoria = solo referencia a la vacante** (no una copia congelada). El dueño eligió la
+  simple. Consecuencia que quedó dicha y aceptada: editar la vacante cambia lo que se ve en
+  todas sus convocatorias, también las cerradas.
+- **Departamento obligatorio y con pantalla propia.** Los cargos existentes se migran a «Sin
+  asignar».
+- **La misma persona puede postularse a otra convocatoria de la misma vacante.** Una vez por
+  convocatoria.
+- **Cargos agrupados por departamento** en la pantalla, no un filtro.
+
+**Lo construido**
+- Tabla `departamentos` (migración 0009) y `cargos.departamento_id` **NOT NULL**. La migración
+  crea «Sin asignar» marcado `es_sistema`, pone ahí los cargos existentes, y solo entonces
+  exige la columna: al revés fallaría en cualquier base con cargos.
+- CRUD en `/api/v1/departamentos`. **Se desactivan, no se borran.** Al desactivar uno, sus
+  cargos **se mueven** a «Sin asignar» —no se esconden—: un cargo tiene que tener siempre un
+  departamento al que pertenecer, y uno desactivado ya no cuenta. «Sin asignar» no se renombra
+  ni se desactiva: es el sitio al que caen los demás.
+- Un departamento desactivado no recibe cargos nuevos, y el mensaje dice por qué.
+- Pantalla **Departamentos** en el sidebar (activos/inactivos, crear, editar, desactivar con
+  una confirmación que dice cuántos cargos mueve), selector obligatorio en el formulario de
+  cargo con enlace a administrarlos, y la lista de **Cargos agrupada por departamento**.
+- El seed de demo da departamento a sus cargos; en producción solo existe «Sin asignar».
+
+**Lo que se rompió al exigirlo, y cómo se arregló**
+13 pruebas que armaban el cargo a mano se pusieron en rojo con 422. Era lo correcto: el campo
+es obligatorio de verdad, no solo en la pantalla. Se les dio el de «Sin asignar» con un helper,
+en vez de aflojar la regla. Dos de ellas (las de «se rechaza por tres títulos») habrían seguido
+en verde **por la razón equivocada** —422 por el departamento que faltaba, no por los títulos—;
+también se corrigieron, porque una prueba que pasa por otro motivo no prueba nada.
+
+**Verificado**
+- 213 pruebas en verde (eran 201). Las 12 nuevas cubren el de respaldo, el CRUD, la unicidad
+  sin importar mayúsculas, los permisos, y la mudanza de cargos al desactivar.
+- En el navegador: la pantalla de Departamentos muestra «Sin asignar · Del sistema · 5
+  cargos», y la de Cargos sale agrupada («Sin asignar · 3») con sus tarjetas dentro.
+- `flake8` y `tsc` limpios.
+
+**Lo que sigue: las convocatorias**
+Es el cambio grande, porque la fecha límite, el estado, el post, el enlace público y los
+postulantes **se mueven** de la vacante a la convocatoria. La migración tendrá que crear la
+«Convocatoria 1» de cada vacante existente con sus datos y reapuntar las postulaciones. Toca
+vacantes, público, compartir, pipeline, contactos, dashboard y sus pantallas.
+
+---
+
+
 ## 2026-10-29 — Sesión 14 · Ver el post antes de publicarlo
 
 **Fase:** M1 — integraciones. Lo pidió el dueño: ver la imagen que sube, y una simulación del

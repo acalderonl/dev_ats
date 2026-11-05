@@ -4,6 +4,7 @@ from app.models.permiso import Permiso, RolPermiso, UsuarioPermiso
 from app.models.usuario import Usuario
 from app.models.nombre_cargo import NombreCargo
 from app.models.clasificacion_cargo import ClasificacionCargo
+from app.models.departamento import Departamento
 from app.models.catalogos_educacion import AreaAcademica, NivelEducacion, TituloAcademico
 from app.models.cargo import Cargo
 from app.models.cargo_educacion import CargoAreaAcademica, CargoNivelEducacion, CargoTitulo
@@ -31,6 +32,7 @@ __all__ = [
     "Usuario",
     "NombreCargo",
     "ClasificacionCargo",
+    "Departamento",
     "Cargo",
     "NivelEducacion",
     "TituloAcademico",

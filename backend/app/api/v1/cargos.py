@@ -9,6 +9,7 @@ from app.models.cargo_educacion import CargoAreaAcademica, CargoNivelEducacion, 
 from app.models.catalogos_educacion import AreaAcademica, NivelEducacion, TituloAcademico
 from app.models.clasificacion_cargo import ClasificacionCargo
 from app.models.competencia import CargoCompetencia, Competencia
+from app.models.departamento import Departamento
 from app.models.nombre_cargo import NombreCargo
 from app.models.pregunta_filtro import PreguntaFiltro
 from app.models.usuario import Usuario
@@ -30,6 +31,7 @@ def _con_catalogos(query):
     return query.options(
         selectinload(Cargo.nombre_catalogo),
         selectinload(Cargo.clasificacion_catalogo),
+        selectinload(Cargo.departamento),
         selectinload(Cargo.niveles_educacion).selectinload(CargoNivelEducacion.nivel),
         selectinload(Cargo.titulos).selectinload(CargoTitulo.titulo),
         selectinload(Cargo.areas_academicas).selectinload(CargoAreaAcademica.area),
@@ -43,6 +45,8 @@ def _a_salida(cargo: Cargo) -> CargoOut:
         id=cargo.id,
         nombre_id=cargo.nombre_id,
         nombre=cargo.nombre,
+        departamento_id=cargo.departamento_id,
+        departamento=cargo.departamento.nombre,
         tiene_personal_a_cargo=cargo.tiene_personal_a_cargo,
         clasificacion_id=cargo.clasificacion_id,
         clasificacion=cargo.clasificacion,
@@ -91,6 +95,16 @@ def _validar_catalogos(db: Session, payload: CargoCreate) -> None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El nombre de cargo seleccionado no existe en el catálogo",
+        )
+    departamento = db.get(Departamento, payload.departamento_id)
+    if departamento is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El departamento seleccionado no existe")
+    if not departamento.activo:
+        # Un departamento desactivado ya no recibe cargos: los que tenía se fueron a
+        # «Sin asignar», y meter uno nuevo lo dejaría en un sitio que no cuenta.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ese departamento está desactivado. Elige uno activo o reactívalo primero.",
         )
     if payload.clasificacion_id is not None and db.get(ClasificacionCargo, payload.clasificacion_id) is None:
         raise HTTPException(
