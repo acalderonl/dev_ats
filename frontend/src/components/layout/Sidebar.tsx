@@ -2,7 +2,6 @@ import { NavLink } from 'react-router-dom'
 import clsx from 'clsx'
 import {
   LayoutDashboard,
-  Briefcase,
   KanbanSquare,
   Users,
   ClipboardCheck,
@@ -24,8 +23,9 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['super_admin', 'reclutador', 'entrevistador'] },
   { to: '/departamentos', label: 'Departamentos', icon: FolderTree, roles: ['super_admin', 'reclutador'] },
+  // Vacantes no tiene entrada propia: es un cargo puesto en circulación, no un
+  // módulo grande. Se entra desde un botón en Cargos.
   { to: '/cargos', label: 'Cargos', icon: Building2, roles: ['super_admin', 'reclutador'] },
-  { to: '/vacantes', label: 'Vacantes', icon: Briefcase, roles: ['super_admin', 'reclutador'] },
   { to: '/pipeline', label: 'Pipeline', icon: KanbanSquare, roles: ['super_admin', 'reclutador'] },
   { to: '/contactos', label: 'Contactos', icon: Users, roles: ['super_admin', 'reclutador'] },
   { to: '/evaluaciones', label: 'Evaluaciones', icon: ClipboardCheck, roles: ['super_admin', 'reclutador', 'entrevistador'] },
