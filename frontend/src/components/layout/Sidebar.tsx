@@ -8,7 +8,6 @@ import {
   ClipboardCheck,
   ShieldCheck,
   Building2,
-  FolderTree,
   Settings,
   X,
 } from 'lucide-react'
@@ -23,7 +22,8 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['super_admin', 'reclutador', 'entrevistador'] },
-  { to: '/departamentos', label: 'Departamentos', icon: FolderTree, roles: ['super_admin', 'reclutador'] },
+  // Departamentos no tiene entrada propia: es donde se organizan los cargos, no un
+  // módulo grande en sí mismo. Se entra desde un botón en Cargos.
   { to: '/cargos', label: 'Cargos', icon: Building2, roles: ['super_admin', 'reclutador'] },
   { to: '/vacantes', label: 'Vacantes', icon: Briefcase, roles: ['super_admin', 'reclutador'] },
   { to: '/pipeline', label: 'Pipeline', icon: KanbanSquare, roles: ['super_admin', 'reclutador'] },

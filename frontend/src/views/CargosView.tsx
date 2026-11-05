@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Trash2, Loader2, Settings, Users, Star, Building2 } from 'lucide-react'
+import { Plus, Trash2, Loader2, Settings, Users, Star, Building2, FolderTree } from 'lucide-react'
 import { toast } from 'sonner'
 import { departamentosService } from '@/services/departamentosService'
 import { Card } from '@/components/common/Card'
@@ -365,15 +365,25 @@ export function CargosView() {
             Descriptivos de puesto. Pulsa el estado de un cargo para activarlo o desactivarlo.
           </p>
         </div>
-        {/* En Inactivos no hay nada que crear: lo que se hace ahí es reactivar. */}
-        {pestana === 'activos' && (
-          <button
-            onClick={abrirNuevo}
-            className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+        <div className="flex items-center gap-2">
+          {/* Departamentos no es su propio módulo grande: es dónde se organizan los
+              cargos. Vive como botón aquí, no como entrada aparte en el menú lateral. */}
+          <Link
+            to="/departamentos"
+            className="flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
           >
-            <Plus size={16} /> Nuevo Cargo
-          </button>
-        )}
+            <FolderTree size={16} /> Departamentos
+          </Link>
+          {/* En Inactivos no hay nada que crear: lo que se hace ahí es reactivar. */}
+          {pestana === 'activos' && (
+            <button
+              onClick={abrirNuevo}
+              className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+            >
+              <Plus size={16} /> Nuevo Cargo
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex gap-1 border-b border-slate-200">
