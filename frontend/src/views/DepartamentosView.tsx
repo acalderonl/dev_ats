@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Building2, Loader2, Pencil, Plus } from 'lucide-react'
+import { ArrowLeft, Building2, Loader2, Pencil, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/common/Badge'
 import { Card } from '@/components/common/Card'
@@ -111,15 +111,21 @@ export function DepartamentosView() {
 
   return (
     <div className="space-y-6">
+      {/* Departamentos no tiene entrada propia en el menú lateral: se entra desde un
+          botón en Cargos, así que hace falta uno explícito para volver. */}
+      <Link
+        to="/cargos"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-700"
+      >
+        <ArrowLeft size={15} /> Volver a Cargos
+      </Link>
+
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Departamentos</h1>
           <p className="text-sm text-slate-500">
-            Las unidades de la institución. Cada cargo pertenece a una; la pantalla de{' '}
-            <Link to="/cargos" className="text-brand-600 hover:underline">
-              Cargos
-            </Link>{' '}
-            se organiza por ellas.
+            Las unidades de la institución. Cada cargo pertenece a una, y esta pantalla se
+            organiza por ellas.
           </p>
         </div>
         {pestana === 'activos' && (
