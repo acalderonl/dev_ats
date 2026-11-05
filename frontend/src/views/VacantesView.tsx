@@ -30,6 +30,7 @@ import { useDataStore } from '@/store/dataStore'
 import { useAuthStore } from '@/store/authStore'
 import { configuracionService, convocatoriasService, vacantesService } from '@/services/vacantesService'
 import { ApiError } from '@/lib/apiClient'
+import { huboCambios } from '@/lib/formDirty'
 import type {
   CampoPersonalizado,
   EstadoVacante,
@@ -200,6 +201,8 @@ export function VacantesView() {
   const [modalAbierto, setModalAbierto] = useState(false)
   const [enEdicion, setEnEdicion] = useState<Vacante | null>(null)
   const [form, setForm] = useState<FormularioDeVacante>(FORM_VACIO)
+  // Lo que había al abrir el modal, para saber si hay algo que perder al cerrarlo.
+  const [formInicial, setFormInicial] = useState<FormularioDeVacante>(FORM_VACIO)
   const [guardando, setGuardando] = useState(false)
   const [subiendoImagen, setSubiendoImagen] = useState(false)
   const [gestionandoContratos, setGestionandoContratos] = useState(false)
@@ -229,14 +232,18 @@ export function VacantesView() {
   }, [fetchVacantes, fetchCargos, fetchPostulaciones, fetchCatalogo])
 
   function abrirNueva() {
+    const datos = { ...FORM_VACIO, cargo_id: cargosActivos[0]?.id ?? 0 }
     setEnEdicion(null)
-    setForm({ ...FORM_VACIO, cargo_id: cargosActivos[0]?.id ?? 0 })
+    setForm(datos)
+    setFormInicial(datos)
     setModalAbierto(true)
   }
 
   function abrirEdicion(vacante: Vacante) {
+    const datos = formDesdeVacante(vacante)
     setEnEdicion(vacante)
-    setForm(formDesdeVacante(vacante))
+    setForm(datos)
+    setFormInicial(datos)
     setModalAbierto(true)
   }
 
@@ -718,7 +725,7 @@ export function VacantesView() {
         onClose={cerrarModal}
         title={enEdicion ? `Editar: ${enEdicion.titulo}` : 'Nueva Vacante'}
         wide
-        confirmarCierre="Se perderá lo que hayas escrito en el formulario."
+        confirmarCierre={huboCambios(form, formInicial) && 'Se perderá lo que hayas escrito en el formulario.'}
       >
         <form onSubmit={guardar} className="space-y-6">
           {/* Arriba del todo, para poder mirar cómo va quedando el post sin bajar

@@ -15,6 +15,7 @@ import {
 import { BarraExperiencia } from '@/components/catalogo/BarraExperiencia'
 import { useDataStore } from '@/store/dataStore'
 import { ApiError } from '@/lib/apiClient'
+import { huboCambios } from '@/lib/formDirty'
 import {
   EXPERIENCIA_TRAMOS,
   type Cargo,
@@ -198,6 +199,8 @@ export function CargosView() {
   const [cambiandoEstado, setCambiandoEstado] = useState(false)
 
   const [form, setForm] = useState(FORM_VACIO)
+  // Lo que había al abrir el modal, para saber si hay algo que perder al cerrarlo.
+  const [formInicial, setFormInicial] = useState(FORM_VACIO)
 
   const activos = useMemo(() => cargos.filter((c) => c.activo), [cargos])
   const inactivos = useMemo(() => cargos.filter((c) => !c.activo), [cargos])
@@ -327,12 +330,15 @@ export function CargosView() {
   function abrirNuevo() {
     setCargoEnEdicion(null)
     setForm(FORM_VACIO)
+    setFormInicial(FORM_VACIO)
     setShowNewCargo(true)
   }
 
   function abrirEdicion(cargo: Cargo) {
+    const datos = formDesdeCargo(cargo)
     setCargoEnEdicion(cargo)
-    setForm(formDesdeCargo(cargo))
+    setForm(datos)
+    setFormInicial(datos)
     setShowNewCargo(true)
   }
 
@@ -484,7 +490,9 @@ export function CargosView() {
         }}
         title={cargoEnEdicion ? `Editar: ${cargoEnEdicion.nombre}` : 'Nuevo Cargo'}
         wide
-        confirmarCierre="Se perderá lo que hayas escrito en las siete secciones."
+        confirmarCierre={
+          huboCambios(form, formInicial) && 'Se perderá lo que hayas escrito en las siete secciones.'
+        }
       >
         <form onSubmit={handleCreateCargo} className="space-y-6">
           <Seccion numero={1} titulo="Identificación del puesto">

@@ -18,6 +18,7 @@ import { SelectorDePermisos } from '@/components/usuarios/SelectorDePermisos'
 import { useAuthStore } from '@/store/authStore'
 import { rolesService, usuariosService } from '@/services/usuariosService'
 import { ApiError } from '@/lib/apiClient'
+import { huboCambios, huboCambiosEnSet } from '@/lib/formDirty'
 import type { Permiso, PermisosDeUsuario, Rol, Usuario } from '@/types'
 
 function errorMessage(err: unknown): string {
@@ -59,6 +60,8 @@ export function UsuariosView() {
   const [modalUsuario, setModalUsuario] = useState(false)
   const [usuarioEnEdicion, setUsuarioEnEdicion] = useState<Usuario | null>(null)
   const [formUsuario, setFormUsuario] = useState(FORM_USUARIO_VACIO)
+  // Lo que había al abrir el modal, para saber si hay algo que perder al cerrarlo.
+  const [formUsuarioInicial, setFormUsuarioInicial] = useState(FORM_USUARIO_VACIO)
   const [usuarioAConfirmar, setUsuarioAConfirmar] = useState<Usuario | null>(null)
   const [claveDe, setClaveDe] = useState<Usuario | null>(null)
   const [claveNueva, setClaveNueva] = useState('')
@@ -73,6 +76,9 @@ export function UsuariosView() {
   const [rolEnEdicion, setRolEnEdicion] = useState<Rol | null>(null)
   const [formRol, setFormRol] = useState({ nombre: '', descripcion: '' })
   const [permisosDelRol, setPermisosDelRol] = useState<Set<string>>(new Set())
+  // Lo que había al abrir el modal, para saber si hay algo que perder al cerrarlo.
+  const [formRolInicial, setFormRolInicial] = useState({ nombre: '', descripcion: '' })
+  const [permisosDelRolInicial, setPermisosDelRolInicial] = useState<Set<string>>(new Set())
   const [rolAEliminar, setRolAEliminar] = useState<Rol | null>(null)
 
   const rolesActivos = useMemo(() => roles.filter((r) => r.activo), [roles])
@@ -99,21 +105,25 @@ export function UsuariosView() {
   // ------------------------------------------------------------- Usuarios
 
   function abrirNuevoUsuario() {
+    const datos = { ...FORM_USUARIO_VACIO, rol: rolesActivos[0]?.nombre ?? '' }
     setUsuarioEnEdicion(null)
-    setFormUsuario({ ...FORM_USUARIO_VACIO, rol: rolesActivos[0]?.nombre ?? '' })
+    setFormUsuario(datos)
+    setFormUsuarioInicial(datos)
     setModalUsuario(true)
   }
 
   function abrirEdicionUsuario(usuario: Usuario) {
-    setUsuarioEnEdicion(usuario)
-    setFormUsuario({
+    const datos = {
       email: usuario.email,
       nombres: usuario.nombres,
       apellidos: usuario.apellidos,
       password: '',
       rol: usuario.rol,
       activo: usuario.activo,
-    })
+    }
+    setUsuarioEnEdicion(usuario)
+    setFormUsuario(datos)
+    setFormUsuarioInicial(datos)
     setModalUsuario(true)
   }
 
@@ -218,14 +228,19 @@ export function UsuariosView() {
   function abrirNuevoRol() {
     setRolEnEdicion(null)
     setFormRol({ nombre: '', descripcion: '' })
+    setFormRolInicial({ nombre: '', descripcion: '' })
     setPermisosDelRol(new Set())
+    setPermisosDelRolInicial(new Set())
     setModalRol(true)
   }
 
   function abrirEdicionRol(rol: Rol) {
+    const datos = { nombre: rol.nombre, descripcion: rol.descripcion ?? '' }
     setRolEnEdicion(rol)
-    setFormRol({ nombre: rol.nombre, descripcion: rol.descripcion ?? '' })
+    setFormRol(datos)
+    setFormRolInicial(datos)
     setPermisosDelRol(new Set(rol.permisos))
+    setPermisosDelRolInicial(new Set(rol.permisos))
     setModalRol(true)
   }
 
@@ -481,7 +496,7 @@ export function UsuariosView() {
         open={modalUsuario}
         onClose={() => setModalUsuario(false)}
         title={usuarioEnEdicion ? `Editar: ${usuarioEnEdicion.nombres}` : 'Nuevo usuario'}
-        confirmarCierre="Se perderá lo que hayas escrito."
+        confirmarCierre={huboCambios(formUsuario, formUsuarioInicial) && 'Se perderá lo que hayas escrito.'}
       >
         <form onSubmit={guardarUsuario} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
@@ -644,7 +659,10 @@ export function UsuariosView() {
         onClose={() => setModalRol(false)}
         title={rolEnEdicion ? `Editar rol: ${comoSeLee(rolEnEdicion.nombre)}` : 'Nuevo rol'}
         wide
-        confirmarCierre="Se perderá lo que hayas escrito."
+        confirmarCierre={
+          (huboCambios(formRol, formRolInicial) || huboCambiosEnSet(permisosDelRol, permisosDelRolInicial)) &&
+          'Se perderá lo que hayas escrito.'
+        }
       >
         <form onSubmit={guardarRol} className="space-y-4">
           <div>

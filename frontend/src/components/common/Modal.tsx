@@ -16,13 +16,15 @@ export function Modal({
   children: ReactNode
   wide?: boolean
   /**
-   * Texto de la pregunta de seguridad. Si se pasa, cerrar —con la X o haciendo clic
-   * fuera— pregunta antes en vez de cerrar directamente.
+   * Texto de la pregunta de seguridad. Si se pasa (y no es `false`), cerrar —con la X
+   * o haciendo clic fuera— pregunta antes en vez de cerrar directamente.
    *
    * Es opcional a propósito: un modal que ya es él mismo una confirmación no debe
-   * pedir confirmación para cerrarse.
+   * pedir confirmación para cerrarse. Y quien llama puede pasar `false` en vez de
+   * quitar el texto cuando el formulario sigue como se abrió: no hay nada que perder,
+   * así que no hay nada que proteger.
    */
-  confirmarCierre?: string
+  confirmarCierre?: string | false
 }) {
   const [preguntando, setPreguntando] = useState(false)
 

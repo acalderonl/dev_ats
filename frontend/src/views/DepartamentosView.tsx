@@ -14,6 +14,7 @@ import { Badge } from '@/components/common/Badge'
 import { Card } from '@/components/common/Card'
 import { Modal } from '@/components/common/Modal'
 import { ApiError } from '@/lib/apiClient'
+import { huboCambios } from '@/lib/formDirty'
 import { departamentosService } from '@/services/departamentosService'
 import type { Departamento } from '@/types'
 
@@ -31,6 +32,8 @@ export function DepartamentosView() {
   const [modalAbierto, setModalAbierto] = useState(false)
   const [enEdicion, setEnEdicion] = useState<Departamento | null>(null)
   const [form, setForm] = useState(FORM_VACIO)
+  // Lo que había al abrir el modal, para saber si hay algo que perder al cerrarlo.
+  const [formInicial, setFormInicial] = useState(FORM_VACIO)
   const [guardando, setGuardando] = useState(false)
 
   const [aConfirmar, setAConfirmar] = useState<Departamento | null>(null)
@@ -57,12 +60,15 @@ export function DepartamentosView() {
   function abrirNuevo() {
     setEnEdicion(null)
     setForm(FORM_VACIO)
+    setFormInicial(FORM_VACIO)
     setModalAbierto(true)
   }
 
   function abrirEdicion(d: Departamento) {
+    const datos = { nombre: d.nombre, descripcion: d.descripcion ?? '' }
     setEnEdicion(d)
-    setForm({ nombre: d.nombre, descripcion: d.descripcion ?? '' })
+    setForm(datos)
+    setFormInicial(datos)
     setModalAbierto(true)
   }
 
@@ -211,7 +217,7 @@ export function DepartamentosView() {
         open={modalAbierto}
         onClose={() => setModalAbierto(false)}
         title={enEdicion ? `Editar: ${enEdicion.nombre}` : 'Nuevo departamento'}
-        confirmarCierre="Se perderá lo que hayas escrito."
+        confirmarCierre={huboCambios(form, formInicial) && 'Se perderá lo que hayas escrito.'}
       >
         <form onSubmit={guardar} className="space-y-4">
           <div>
