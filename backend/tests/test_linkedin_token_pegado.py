@@ -156,7 +156,9 @@ def test_con_token_pegado_se_publica_de_verdad_sin_credenciales(
     monkeypatch.setattr(linkedin_service, "publicar_en_el_muro", lambda **_: "urn:li:share:7777")
 
     vacante = crear_vacante(crear_cargo(unique_suffix)["id"], estado="abierta")
-    cuerpo = client.post(f"/api/v1/vacantes/{vacante['id']}/publicar-linkedin", headers=reclutador_headers).json()
+    cuerpo = client.post(
+        f"/api/v1/convocatorias/{vacante['convocatoria_id']}/publicar-linkedin", headers=reclutador_headers
+    ).json()
 
     assert cuerpo["simulado"] is False
     assert cuerpo["linkedin_post_id"] == "urn:li:share:7777"
@@ -168,7 +170,9 @@ def test_sin_token_y_sin_credenciales_sigue_simulando(
     """El modo simulado no se pierde: es lo que evita aparentar que algo salió."""
     vacante = crear_vacante(crear_cargo(unique_suffix)["id"], estado="abierta")
 
-    cuerpo = client.post(f"/api/v1/vacantes/{vacante['id']}/publicar-linkedin", headers=reclutador_headers).json()
+    cuerpo = client.post(
+        f"/api/v1/convocatorias/{vacante['convocatoria_id']}/publicar-linkedin", headers=reclutador_headers
+    ).json()
 
     assert cuerpo["simulado"] is True
 
@@ -195,7 +199,9 @@ def test_con_el_token_caducado_no_se_simula_sino_que_se_avisa(
         sesion.commit()
 
     vacante = crear_vacante(crear_cargo(unique_suffix)["id"], estado="abierta")
-    respuesta = client.post(f"/api/v1/vacantes/{vacante['id']}/publicar-linkedin", headers=reclutador_headers)
+    respuesta = client.post(
+        f"/api/v1/convocatorias/{vacante['convocatoria_id']}/publicar-linkedin", headers=reclutador_headers
+    )
 
     assert respuesta.status_code == 400
     assert "caducó" in respuesta.json()["detail"]

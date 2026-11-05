@@ -140,21 +140,18 @@ export interface CampoPersonalizado {
   valor: string
 }
 
-export interface Vacante {
+/**
+ * Una vez que la vacante sale a recibir gente: su fecha de cierre, su estado, su post,
+ * su enlace y sus postulantes. Una vacante se convoca varias veces; cada una queda.
+ */
+export interface Convocatoria {
   id: string
-  cargo_id: number
-  titulo: string
-  descripcion: string
-  slug: string
+  vacante_id: string
+  /** 1, 2, 3… dentro de la vacante. */
+  numero: number
   fecha_limite: string
-
-  remuneracion: string | null
-  jornada_horas: string | null
-  hora_entrada: string | null
-  hora_salida: string | null
-  tipo_contrato_id: number | null
-  tipo_contrato_nombre: string | null
-  campos_personalizados: CampoPersonalizado[]
+  estado: EstadoVacante
+  slug: string
 
   asunto: string | null
   post_cuerpo: string | null
@@ -164,19 +161,46 @@ export interface Vacante {
   post_publicado_en: string | null
   post_error: string | null
   linkedin_post_id: string | null
-
-  visibilidad: VisibilidadVacante
-  destinatarios_internos: string[]
   enviado_internamente_en: string | null
 
   url_publica: string | null
-  empleador_id: string
-  estado: EstadoVacante
+  /** Cuántas personas se han postulado a esta convocatoria. */
+  postulantes: number
   creado_en: string
 }
 
+/** Las condiciones del puesto. El ciclo (fecha, estado, post, enlace) es de la convocatoria. */
+export interface Vacante {
+  id: string
+  cargo_id: number
+  titulo: string
+  descripcion: string
+
+  remuneracion: string | null
+  jornada_horas: string | null
+  hora_entrada: string | null
+  hora_salida: string | null
+  tipo_contrato_id: number | null
+  tipo_contrato_nombre: string | null
+  campos_personalizados: CampoPersonalizado[]
+
+  visibilidad: VisibilidadVacante
+  destinatarios_internos: string[]
+
+  empleador_id: string
+  activa: boolean
+  creado_en: string
+
+  /** De la más reciente a la primera. */
+  convocatorias: Convocatoria[]
+  convocatoria_actual: Convocatoria | null
+}
+
+/** Lo que ve el candidato. `id` y `slug` son de la convocatoria: es a lo que se postula. */
 export interface VacantePublica {
   id: string
+  vacante_id: string
+  numero: number
   titulo: string
   descripcion: string
   slug: string
@@ -316,6 +340,9 @@ export type EstadoPipeline =
 
 export interface Postulacion {
   id: string
+  /** A qué convocatoria se postuló. `vacante_id` se deriva de ella. */
+  convocatoria_id: string
+  convocatoria_numero: number
   vacante_id: string
   postulante_id: string
   respuestas_filtro: Record<string, string> | null

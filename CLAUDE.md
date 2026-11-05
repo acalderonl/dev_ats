@@ -66,11 +66,12 @@ backend/app/
 ├── api/v1/        # Routers REST: auth, users, cargos, catalogos, competencias, vacantes,
 │                  # public, postulaciones, evaluaciones (anidado bajo /postulaciones),
 │                  # contactos, dashboard, configuracion, media, departamentos,
-│                  # compartir (este último fuera de /api/v1)
+│                  # convocatorias, compartir (este último fuera de /api/v1)
 ├── core/          # config.py (Settings + clave de cifrado), database.py, security.py (JWT/RBAC), utils.py (slug)
 ├── models/        # Modelos SQLAlchemy 2.0, uno por tabla (roles, usuarios, cargos, ...)
 ├── schemas/       # Pydantic: *Create / *Out por recurso
 ├── services/      # Lógica de negocio: cv_parser_service, linkedin_service, correo_service,
+│                  # post_service (el texto del post y la vista previa: una sola fuente),
 │                  # whatsapp_service, almacenamiento_service (imágenes),
 │                  # configuracion_service (secretos cifrados),
 │                  # pipeline_service (reglas de transición), evaluation_service
@@ -139,14 +140,38 @@ Una vacante es **un cargo puesto en circulación**: no se escribe un título, se
 título se copia de él. Es una copia y no un `join` a propósito: de ella sale el `slug`, que es la
 URL pública, y si siguiera al catálogo, renombrar un cargo rompería enlaces ya repartidos.
 
+🔴 **Desde la migración 0010 la vacante no lleva el ciclo: lo lleva la convocatoria.** La
+estructura es `Departamento → Cargo → Vacante → Convocatoria → Postulación`:
+
+- **Vacante** (`/api/v1/vacantes`): las **condiciones del puesto** —sueldo, horario, contrato,
+  campos personalizados, visibilidad, destinatarios internos— y `activa` (se desactiva, no se
+  borra). Nace con su **convocatoria 1** (`primera_convocatoria` en el `POST`); al editar, esa
+  parte se ignora.
+- **Convocatoria** (`/api/v1/convocatorias`, modelo `convocatoria.py`): **una vez que la vacante
+  sale a recibir gente**. Lleva `numero` (1, 2, 3… por vacante), `fecha_limite`, `estado`
+  (borrador / abierta / cerrada), el **`slug`** —cada ronda tiene su propio enlace—, el post
+  (`asunto`, `post_cuerpo`, `post_imagen_url`, `post_programado_para`, `post_estado`,
+  `linkedin_post_id`…) y los postulantes. Todo lo que se hace con el post (vista previa,
+  compartir, publicar, reescribir, borrar, envío interno, WhatsApp) cuelga de aquí.
+  `POST /vacantes/{id}/convocatorias` abre la siguiente: hereda asunto, texto e imagen de la
+  anterior («con los mismos datos que ya se crearon»), empieza con el post en borrador, y
+  **cierra la anterior si seguía abierta** —dos rondas abiertas serían dos enlaces para lo mismo—.
+  La convocatoria **no copia** las condiciones: las lee de la vacante (decisión del dueño,
+  2026-11-04). Editar el sueldo cambia lo que se ve en todas sus rondas, también las cerradas.
+- **Postulación**: cuelga de la convocatoria (`convocatoria_id`). **Una persona, una vez por
+  convocatoria**: quien no quedó puede volver en la siguiente ronda; repetir en la misma da 409.
+  La regla la aplica el endpoint, no una restricción de base (ver docstring del modelo).
+
 Tres conceptos que se confunden y son columnas distintas:
 
-- `estado`: borrador / abierta / cerrada (el proceso de selección).
-- `post_estado`: borrador / programado / publicado / error (la publicación).
-- `visibilidad`: publica / interna / mixta (a quién llega).
+- `estado` (de la convocatoria): borrador / abierta / cerrada (el proceso de selección).
+- `post_estado` (de la convocatoria): borrador / programado / compartido / publicado / error.
+- `visibilidad` (de la vacante): publica / interna / mixta (a quién llega).
 
-Una vacante **interna** no aparece en el portal público aunque esté abierta y alguien tenga el
-enlace, y no se puede publicar en LinkedIn.
+Una vacante **interna** no aparece en el portal público aunque tenga una convocatoria abierta y
+alguien tenga el enlace, y no se puede publicar en LinkedIn. El texto del post lo arma
+`services/post_service.py`, que es también lo que usa la vista previa: así lo que se ve es lo
+que sale.
 
 ### Configuración (`/configuracion`, solo `super_admin`)
 

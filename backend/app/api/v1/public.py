@@ -2,10 +2,11 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.database import get_db
 from app.core.limites import limitar
+from app.models.convocatoria import Convocatoria
 from app.models.pregunta_filtro import PreguntaFiltro
 from app.models.postulacion import Postulacion
 from app.models.postulante import Postulante
@@ -21,28 +22,38 @@ from app.services.cv_parser_service import parse_cv_upload
 router = APIRouter()
 
 
-def _get_vacante_activa_or_410(db: Session, slug: str) -> Vacante:
-    vacante = db.scalar(select(Vacante).where(Vacante.slug == slug))
-    if vacante is None:
+def _get_convocatoria_activa_or_410(db: Session, slug: str) -> Convocatoria:
+    """La convocatoria del enlace, si sigue recibiendo gente.
+
+    El slug es de la convocatoria, no de la vacante: así se sabe a cuál de las rondas
+    se postuló alguien. Las condiciones del puesto se leen de `convocatoria.vacante`.
+    """
+    convocatoria = db.scalar(
+        select(Convocatoria)
+        .options(selectinload(Convocatoria.vacante).selectinload(Vacante.cargo))
+        .options(selectinload(Convocatoria.vacante).selectinload(Vacante.tipo_contrato))
+        .where(Convocatoria.slug == slug)
+    )
+    if convocatoria is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vacante no encontrada")
 
-    fecha_limite = vacante.fecha_limite
+    fecha_limite = convocatoria.fecha_limite
     if fecha_limite.tzinfo is None:
         fecha_limite = fecha_limite.replace(tzinfo=timezone.utc)
 
-    if vacante.estado != "abierta" or fecha_limite < datetime.now(timezone.utc):
+    if convocatoria.estado != "abierta" or fecha_limite < datetime.now(timezone.utc):
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail="Esta vacante ha expirado. Revisa nuestro LinkedIn para más información.",
         )
     # Una vacante interna no existe para el portal público, aunque esté abierta y
     # alguien tenga el enlace: para eso se marcó interna.
-    if vacante.visibilidad == "interna":
+    if convocatoria.vacante.visibilidad == "interna" or not convocatoria.vacante.activa:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Vacante no encontrada",
         )
-    return vacante
+    return convocatoria
 
 
 @router.get(
@@ -51,14 +62,17 @@ def _get_vacante_activa_or_410(db: Session, slug: str) -> Vacante:
     dependencies=[Depends(limitar("consulta"))],
 )
 def obtener_vacante_publica(slug: str, db: Session = Depends(get_db)) -> VacantePublicaOut:
-    vacante = _get_vacante_activa_or_410(db, slug)
+    convocatoria = _get_convocatoria_activa_or_410(db, slug)
+    vacante = convocatoria.vacante
     preguntas = db.scalars(select(PreguntaFiltro).where(PreguntaFiltro.cargo_id == vacante.cargo_id)).all()
     return VacantePublicaOut(
-        id=vacante.id,
+        id=convocatoria.id,
+        vacante_id=vacante.id,
+        numero=convocatoria.numero,
         titulo=vacante.titulo,
         descripcion=vacante.descripcion,
-        slug=vacante.slug,
-        fecha_limite=vacante.fecha_limite,
+        slug=convocatoria.slug,
+        fecha_limite=convocatoria.fecha_limite,
         cargo_nombre=vacante.cargo.nombre,
         remuneracion=vacante.remuneracion,
         hora_entrada=vacante.hora_entrada,
@@ -179,16 +193,32 @@ def _crear_postulante(payload: PostularRequest) -> Postulante:
     dependencies=[Depends(limitar("postular"))],
 )
 def postular(slug: str, payload: PostularRequest, db: Session = Depends(get_db)) -> PostulanteOut:
-    vacante = _get_vacante_activa_or_410(db, slug)
+    convocatoria = _get_convocatoria_activa_or_410(db, slug)
 
     postulante = db.scalar(select(Postulante).where(Postulante.cedula == payload.cedula))
     if postulante is None:
         postulante = _crear_postulante(payload)
         db.add(postulante)
         db.flush()
+    else:
+        # Una vez por convocatoria (decisión del dueño): quien no quedó en una ronda
+        # puede volver a intentarlo en la siguiente, pero no duplicarse en la misma.
+        repetida = db.scalar(
+            select(Postulacion).where(
+                Postulacion.convocatoria_id == convocatoria.id, Postulacion.postulante_id == postulante.id
+            )
+        )
+        if repetida is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Ya te postulaste a esta convocatoria. "
+                    "Si el puesto se vuelve a convocar, podrás hacerlo de nuevo."
+                ),
+            )
 
     postulacion = Postulacion(
-        vacante_id=vacante.id,
+        convocatoria_id=convocatoria.id,
         postulante_id=postulante.id,
         respuestas_filtro=payload.respuestas_filtro,
         estado_pipeline="pendiente_autorizacion",

@@ -14,6 +14,7 @@ from app.models.tipo_contrato import TipoContrato
 from app.models.jornada import Jornada
 from app.models.configuracion import Configuracion
 from app.models.vacante import TokenLinkedIn, Vacante
+from app.models.convocatoria import Convocatoria
 from app.models.postulante import Postulante
 from app.models.postulante_perfil import (
     PostulanteEducacion,
@@ -48,6 +49,7 @@ __all__ = [
     "Configuracion",
     "Vacante",
     "TokenLinkedIn",
+    "Convocatoria",
     "Postulante",
     "PostulanteEducacion",
     "PostulanteIdioma",

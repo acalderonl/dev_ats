@@ -28,7 +28,7 @@ import { CamposPersonalizados } from '@/components/vacantes/CamposPersonalizados
 import { SelectorDeHorario } from '@/components/vacantes/SelectorDeHorario'
 import { useDataStore } from '@/store/dataStore'
 import { useAuthStore } from '@/store/authStore'
-import { configuracionService, vacantesService } from '@/services/vacantesService'
+import { configuracionService, convocatoriasService, vacantesService } from '@/services/vacantesService'
 import { ApiError } from '@/lib/apiClient'
 import type {
   CampoPersonalizado,
@@ -38,6 +38,7 @@ import type {
   Vacante,
   VisibilidadVacante,
   VistaPreviaDelPost,
+  Convocatoria,
 } from '@/types'
 
 function errorMessage(err: unknown): string {
@@ -90,22 +91,36 @@ function aInputLocal(iso: string | null): string {
   return new Date(fecha.getTime() - desfase).toISOString().slice(0, 16)
 }
 
+/**
+ * La convocatoria sobre la que se actúa desde la tarjeta: la más reciente.
+ *
+ * Una vacante siempre tiene al menos una (nace con ella y la migración se la creó a
+ * las existentes), así que llegar aquí sin ninguna es un dato roto, no un caso de uso.
+ */
+function cicloDe(v: Vacante): Convocatoria {
+  if (!v.convocatoria_actual) throw new Error(`La vacante «${v.titulo}» no tiene ninguna convocatoria`)
+  return v.convocatoria_actual
+}
+
 function formDesdeVacante(v: Vacante): FormularioDeVacante {
+  // El formulario mezcla condiciones (de la vacante) y ciclo (de la convocatoria actual)
+  // porque así lo arma la persona; al guardar se separan otra vez.
+  const c = cicloDe(v)
   return {
     cargo_id: v.cargo_id,
     descripcion: v.descripcion,
-    fecha_limite: aInputLocal(v.fecha_limite),
+    fecha_limite: aInputLocal(c.fecha_limite),
     remuneracion: v.remuneracion ?? '',
     jornada_horas: v.jornada_horas ?? '',
     hora_entrada: v.hora_entrada?.slice(0, 5) ?? '',
     hora_salida: v.hora_salida?.slice(0, 5) ?? '',
     tipo_contrato_id: v.tipo_contrato_id,
     campos_personalizados: v.campos_personalizados ?? [],
-    asunto: v.asunto ?? '',
-    post_cuerpo: v.post_cuerpo ?? '',
-    post_imagen_url: v.post_imagen_url,
-    post_programado_para: aInputLocal(v.post_programado_para),
-    estado: v.estado,
+    asunto: c.asunto ?? '',
+    post_cuerpo: c.post_cuerpo ?? '',
+    post_imagen_url: c.post_imagen_url,
+    post_programado_para: aInputLocal(c.post_programado_para),
+    estado: c.estado,
     visibilidad: v.visibilidad,
     destinatarios_internos: (v.destinatarios_internos ?? []).join(', '),
   }
@@ -171,7 +186,9 @@ export function VacantesView() {
     fetchCatalogo,
     createVacante,
     updateVacante,
-    cambiarEstadoVacante,
+    cambiarEstadoConvocatoria,
+    abrirConvocatoria,
+    actualizarConvocatoria,
     publicarEnLinkedIn,
     enviarInterno,
     shareWhatsApp,
@@ -191,6 +208,10 @@ export function VacantesView() {
   /** Lo que se mandó a LinkedIn, para poder reabrir el texto si el pegado falló. */
   const [compartido, setCompartido] = useState<ParaCompartirEnLinkedIn | null>(null)
   const [publicandoId, setPublicandoId] = useState<string | null>(null)
+  // Volver a convocar: solo pide la nueva fecha de cierre; el post se hereda del anterior.
+  const [convocando, setConvocando] = useState<Vacante | null>(null)
+  const [nuevaFechaLimite, setNuevaFechaLimite] = useState('')
+  const [abriendoConvocatoria, setAbriendoConvocatoria] = useState(false)
 
   const tiposContrato = catalogos['tipos-contrato'] ?? []
   const cargosActivos = useMemo(() => cargos.filter((c) => c.activo), [cargos])
@@ -252,27 +273,38 @@ export function VacantesView() {
     }
   }
 
-  /** Lo que el formulario manda al servidor. Lo usan guardar y la vista previa. */
-  function payloadDelFormulario() {
+  /** La parte del formulario que es del ciclo: va a la convocatoria. */
+  function cicloDelFormulario() {
     return {
-      cargo_id: Number(form.cargo_id),
-      descripcion: form.descripcion,
       fecha_limite: new Date(form.fecha_limite).toISOString(),
-      remuneracion: form.remuneracion || null,
-      jornada_horas: form.jornada_horas || null,
-      hora_entrada: form.hora_entrada || null,
-      hora_salida: form.hora_salida || null,
-      tipo_contrato_id: form.tipo_contrato_id,
-      campos_personalizados: form.campos_personalizados.filter((c) => c.etiqueta.trim()),
+      estado: form.estado,
       asunto: form.asunto || null,
       post_cuerpo: form.post_cuerpo || null,
       post_imagen_url: form.post_imagen_url,
       post_programado_para: form.post_programado_para
         ? new Date(form.post_programado_para).toISOString()
         : null,
-      estado: form.estado,
+    }
+  }
+
+  /**
+   * Lo que el formulario manda al servidor: las condiciones, con el ciclo anidado
+   * como `primera_convocatoria`. Al crear, el servidor usa las dos partes; al editar
+   * ignora la anidada y el ciclo se manda aparte a la convocatoria actual.
+   */
+  function payloadDelFormulario() {
+    return {
+      cargo_id: Number(form.cargo_id),
+      descripcion: form.descripcion,
+      remuneracion: form.remuneracion || null,
+      jornada_horas: form.jornada_horas || null,
+      hora_entrada: form.hora_entrada || null,
+      hora_salida: form.hora_salida || null,
+      tipo_contrato_id: form.tipo_contrato_id,
+      campos_personalizados: form.campos_personalizados.filter((c) => c.etiqueta.trim()),
       visibilidad: form.visibilidad,
       destinatarios_internos: correosInternos,
+      primera_convocatoria: cicloDelFormulario(),
     }
   }
 
@@ -304,9 +336,15 @@ export function VacantesView() {
 
     setGuardando(true)
     try {
-      const vacante = enEdicion
-        ? await updateVacante(enEdicion.id, payload)
-        : await createVacante(payload)
+      let vacante: Vacante
+      if (enEdicion) {
+        // Dos llamadas a propósito: las condiciones son de la vacante y el ciclo es
+        // de la convocatoria actual. El servidor ignora la parte anidada al editar.
+        vacante = await updateVacante(enEdicion.id, payload)
+        await actualizarConvocatoria(cicloDe(enEdicion).id, cicloDelFormulario())
+      } else {
+        vacante = await createVacante(payload)
+      }
       toast.success(enEdicion ? 'Vacante actualizada' : `Vacante "${vacante.titulo}" creada`)
       cerrarModal()
     } catch (err) {
@@ -318,7 +356,7 @@ export function VacantesView() {
 
   async function verVistaPrevia(vacante: Vacante) {
     try {
-      setPrevia(await vacantesService.vistaPrevia(vacante.id))
+      setPrevia(await convocatoriasService.vistaPrevia(cicloDe(vacante).id))
     } catch (err) {
       toast.error(errorMessage(err))
     }
@@ -326,14 +364,14 @@ export function VacantesView() {
 
   /** Si el post existe de verdad en LinkedIn. Un id simulado no se puede tocar allí. */
   function tienePostEnLinkedIn(vacante: Vacante): boolean {
-    return Boolean(vacante.linkedin_post_id && !vacante.linkedin_post_id.includes('simulado'))
+    return Boolean(vacante.convocatoria_actual?.linkedin_post_id && !vacante.convocatoria_actual.linkedin_post_id.includes('simulado'))
   }
 
   /** Reescribe el texto del post con lo que dice hoy la vacante. */
   async function actualizarPost(vacante: Vacante) {
     setPublicandoId(vacante.id)
     try {
-      const { mensaje } = await vacantesService.actualizarPostEnLinkedIn(vacante.id)
+      const { mensaje } = await convocatoriasService.actualizarPostEnLinkedIn(cicloDe(vacante).id)
       toast.success(mensaje)
     } catch (err) {
       toast.error(errorMessage(err))
@@ -359,7 +397,7 @@ export function VacantesView() {
 
     setPublicandoId(vacante.id)
     try {
-      const { mensaje } = await vacantesService.borrarPostEnLinkedIn(vacante.id)
+      const { mensaje } = await convocatoriasService.borrarPostEnLinkedIn(cicloDe(vacante).id)
       toast.success(mensaje)
       await fetchVacantes()
     } catch (err) {
@@ -369,10 +407,36 @@ export function VacantesView() {
     }
   }
 
+  /**
+   * Vuelve a convocar la vacante.
+   *
+   * Solo se pide la nueva fecha de cierre: el asunto, el texto y la imagen se heredan
+   * de la convocatoria anterior (lo hace el servidor), que es lo que pidió el dueño:
+   * «con los mismos datos que ya se crearon». La anterior se cierra si seguía abierta.
+   */
+  async function convocarDeNuevo() {
+    if (!convocando) return
+    if (!nuevaFechaLimite) return toast.error('Falta la fecha de cierre de la nueva convocatoria')
+    setAbriendoConvocatoria(true)
+    try {
+      await abrirConvocatoria(convocando.id, {
+        fecha_limite: new Date(nuevaFechaLimite).toISOString(),
+        estado: 'abierta',
+      })
+      toast.success(`Convocatoria ${cicloDe(convocando).numero + 1} abierta para «${convocando.titulo}»`)
+      setConvocando(null)
+      setNuevaFechaLimite('')
+    } catch (err) {
+      toast.error(errorMessage(err))
+    } finally {
+      setAbriendoConvocatoria(false)
+    }
+  }
+
   async function publicar(vacante: Vacante) {
     setPublicandoId(vacante.id)
     try {
-      const { simulado, mensaje } = await publicarEnLinkedIn(vacante.id)
+      const { simulado, mensaje } = await publicarEnLinkedIn(cicloDe(vacante).id)
       if (simulado) toast.warning(mensaje)
       else toast.success(mensaje)
     } catch (err) {
@@ -393,7 +457,7 @@ export function VacantesView() {
     const pestana = window.open('', '_blank')
     setPublicandoId(vacante.id)
     try {
-      const datos = await vacantesService.compartirEnLinkedIn(vacante.id)
+      const datos = await convocatoriasService.compartirEnLinkedIn(cicloDe(vacante).id)
       // El portapapeles también quiere el gesto del usuario cerca; va antes de nada
       // más por si falla, para poder avisar.
       let copiado = true
@@ -421,7 +485,7 @@ export function VacantesView() {
   async function enviar(vacante: Vacante) {
     setPublicandoId(vacante.id)
     try {
-      toast.success(await enviarInterno(vacante.id))
+      toast.success(await enviarInterno(cicloDe(vacante).id))
     } catch (err) {
       toast.error(errorMessage(err))
     } finally {
@@ -430,7 +494,7 @@ export function VacantesView() {
   }
 
   function copiarEnlace(vacante: Vacante) {
-    const url = vacante.url_publica ?? `${window.location.origin}/postular/${vacante.slug}`
+    const url = cicloDe(vacante).url_publica ?? `${window.location.origin}/postular/${cicloDe(vacante).slug}`
     navigator.clipboard?.writeText(url)
     toast.success('Enlace copiado')
   }
@@ -503,7 +567,7 @@ export function VacantesView() {
                     {vacante.titulo}
                   </h3>
                   <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
-                    <Badge tone={TONO_DE_ESTADO[vacante.estado]}>{vacante.estado}</Badge>
+                    <Badge tone={TONO_DE_ESTADO[cicloDe(vacante).estado]}>{cicloDe(vacante).estado}</Badge>
                     <Badge tone={vacante.visibilidad === 'publica' ? 'blue' : 'slate'}>
                       {vacante.visibilidad}
                     </Badge>
@@ -535,12 +599,21 @@ export function VacantesView() {
                   </Dato>
                 </div>
 
+                {/* Qué ronda es y cuánta gente ha entrado por ella. Si hubo más de una,
+                    se dice: es el histórico que pidió el dueño para el control. */}
+                <p className="text-xs text-slate-500">
+                  Convocatoria {cicloDe(vacante).numero}
+                  {vacante.convocatorias.length > 1 && ` de ${vacante.convocatorias.length}`}
+                  {' · '}
+                  {cicloDe(vacante).postulantes === 1 ? '1 postulante' : `${cicloDe(vacante).postulantes} postulantes`}
+                  {!vacante.activa && <span className="ml-2 text-red-600">· vacante inactiva</span>}
+                </p>
                 <div className="flex items-center gap-2 border-t border-slate-100 pt-3 text-xs">
-                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${PUNTO_DEL_POST[vacante.post_estado]}`} />
-                  <span className="text-slate-600">{ETIQUETA_DEL_POST[vacante.post_estado]}</span>
-                  {vacante.post_programado_para && vacante.post_estado === 'programado' && (
+                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${PUNTO_DEL_POST[cicloDe(vacante).post_estado]}`} />
+                  <span className="text-slate-600">{ETIQUETA_DEL_POST[cicloDe(vacante).post_estado]}</span>
+                  {cicloDe(vacante).post_programado_para && cicloDe(vacante).post_estado === 'programado' && (
                     <span className="truncate text-slate-400">
-                      · {new Date(vacante.post_programado_para).toLocaleString()}
+                      · {new Date(cicloDe(vacante).post_programado_para!).toLocaleString()}
                     </span>
                   )}
                 </div>
@@ -562,9 +635,9 @@ export function VacantesView() {
                 {vacante.visibilidad !== 'interna' && (
                   <button
                     onClick={() => compartirEnLinkedIn(vacante)}
-                    disabled={publicandoId === vacante.id || vacante.estado !== 'abierta'}
+                    disabled={publicandoId === vacante.id || cicloDe(vacante).estado !== 'abierta'}
                     title={
-                      vacante.estado !== 'abierta'
+                      cicloDe(vacante).estado !== 'abierta'
                         ? 'Solo se comparte una vacante abierta'
                         : 'Copia el texto y abre LinkedIn para publicar'
                     }
@@ -608,14 +681,26 @@ export function VacantesView() {
                   </button>
                 )}
                 <button
-                  onClick={() => compartirWhatsApp(vacante.id)}
+                  onClick={() => compartirWhatsApp(cicloDe(vacante).id)}
                   className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:text-slate-900"
                 >
                   <MessageCircle size={13} /> WhatsApp
                 </button>
-                {vacante.estado !== 'cerrada' && (
+                {vacante.activa && (
                   <button
-                    onClick={() => cambiarEstadoVacante(vacante.id, 'cerrada').catch((e) => toast.error(errorMessage(e)))}
+                    onClick={() => {
+                      setConvocando(vacante)
+                      setNuevaFechaLimite('')
+                    }}
+                    title="Abre una convocatoria nueva con el mismo post; la actual se cierra si seguía abierta"
+                    className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:text-slate-900"
+                  >
+                    <RefreshCw size={13} /> Nueva convocatoria
+                  </button>
+                )}
+                {cicloDe(vacante).estado !== 'cerrada' && (
+                  <button
+                    onClick={() => cambiarEstadoConvocatoria(cicloDe(vacante).id, 'cerrada').catch((e) => toast.error(errorMessage(e)))}
                     className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-red-600 shadow-sm transition-colors hover:border-red-300 hover:bg-red-50"
                   >
                     Cerrar
@@ -793,7 +878,7 @@ export function VacantesView() {
                 <p className="text-xs font-medium text-slate-600">Enlace para postular</p>
                 <div className="mt-1 flex items-center gap-2">
                   <code className="flex-1 truncate text-xs text-slate-500">
-                    {enEdicion.url_publica ?? `${window.location.origin}/postular/${enEdicion.slug}`}
+                    {cicloDe(enEdicion).url_publica ?? `${window.location.origin}/postular/${cicloDe(enEdicion).slug}`}
                   </code>
                   <button
                     type="button"
@@ -975,6 +1060,60 @@ export function VacantesView() {
         onClose={() => setGestionandoContratos(false)}
         onItemCreado={(id) => actualizar({ tipo_contrato_id: id })}
       />
+
+      {/* ----------------------------------------------- Nueva convocatoria */}
+      <Modal
+        open={convocando !== null}
+        onClose={() => setConvocando(null)}
+        title={convocando ? `Convocatoria ${cicloDe(convocando).numero + 1}: ${convocando.titulo}` : ''}
+      >
+        {convocando && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              convocarDeNuevo()
+            }}
+            className="space-y-4"
+          >
+            <p className="text-sm text-slate-600">
+              Se abre una ronda nueva con el <strong>mismo post</strong> (asunto, texto e imagen) y
+              un enlace propio. Las condiciones son las de la vacante.
+              {cicloDe(convocando).estado === 'abierta' && (
+                <> La convocatoria {cicloDe(convocando).numero}, que sigue abierta, se cierra.</>
+              )}
+            </p>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Nueva fecha de cierre <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="datetime-local"
+                required
+                value={nuevaFechaLimite}
+                onChange={(e) => setNuevaFechaLimite(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setConvocando(null)}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={abriendoConvocatoria}
+                className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+              >
+                {abriendoConvocatoria && <Loader2 size={15} className="animate-spin" />}
+                Abrir convocatoria
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
 
       {/* ----------------------------------------------------------- Vista previa */}
       <Modal

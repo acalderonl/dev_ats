@@ -6,7 +6,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.postulacion import Postulacion
 from app.models.usuario import Usuario
-from app.models.vacante import Vacante
+from app.models.convocatoria import Convocatoria
 from app.schemas.dashboard import DashboardMetricsOut, OrigenCount, PipelineEtapaCount
 
 router = APIRouter()
@@ -14,8 +14,25 @@ router = APIRouter()
 
 @router.get("/metrics", response_model=DashboardMetricsOut)
 def obtener_metricas(db: Session = Depends(get_db), _: Usuario = Depends(get_current_user)) -> DashboardMetricsOut:
-    vacantes_activas = db.scalar(select(func.count()).select_from(Vacante).where(Vacante.estado == "abierta")) or 0
-    vacantes_expiradas = db.scalar(select(func.count()).select_from(Vacante).where(Vacante.estado == "expirada")) or 0
+    # Se cuentan convocatorias, que es lo que está recibiendo gente. "Activas" son las
+    # abiertas y no vencidas; "expiradas", las que siguen marcadas abiertas pero cuya
+    # fecha ya pasó —las que alguien debería cerrar o volver a convocar—.
+    vacantes_activas = (
+        db.scalar(
+            select(func.count())
+            .select_from(Convocatoria)
+            .where(Convocatoria.estado == "abierta", Convocatoria.fecha_limite >= func.now())
+        )
+        or 0
+    )
+    vacantes_expiradas = (
+        db.scalar(
+            select(func.count())
+            .select_from(Convocatoria)
+            .where(Convocatoria.estado == "abierta", Convocatoria.fecha_limite < func.now())
+        )
+        or 0
+    )
     postulaciones_totales = db.scalar(select(func.count()).select_from(Postulacion)) or 0
     entrevistas_pendientes = (
         db.scalar(select(func.count()).select_from(Postulacion).where(Postulacion.estado_pipeline == "entrevista")) or 0

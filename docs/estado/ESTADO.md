@@ -1,6 +1,6 @@
 # Estado del proyecto — dónde estamos AHORA
 
-> Última actualización: **2026-11-04** · Sesiones: **15** (en 12 días) · Pruebas: **213 en verde**
+> Última actualización: **2026-11-04** · Sesiones: **15** (en 12 días) · Pruebas: **223 en verde**
 > Este archivo se lee al empezar cada sesión. Si algo aquí ya no es cierto, se corrige antes de seguir.
 
 ## En una línea
@@ -45,7 +45,7 @@ Leyenda: 🟢 base funcionando · 🟡 base funcionando con huecos conocidos · 
 
 | Módulo | Estado | Verificado | Siguiente fase | Etapa |
 |---|---|---|---|---|
-| **M1** Cargos, vacantes e integraciones | 🟢 | Cargos y vacantes: crear, editar y estados, **con pruebas**. Compartir en LinkedIn **sin OAuth**: medido que el rastreador no ve la SPA y que `/compartir` sí le da las etiquetas. Conectar pegando un token del portal. **Departamentos**: CRUD con pantalla propia, cargo con departamento obligatorio y Cargos agrupados por él, **con pruebas** (incluido que desactivar uno mueve sus cargos a «Sin asignar»); comprobado en el navegador. Publicación por API con la tarjeta completa (título, descripción y miniatura) y gestión del post (reescribir/borrar), **con pruebas**; ⚠️ nada probado todavía contra LinkedIn de verdad | M1.6 publicar a la hora programada | 4 |
+| **M1** Cargos, vacantes e integraciones | 🟢 | Cargos y vacantes: crear, editar y estados, **con pruebas**. Compartir en LinkedIn **sin OAuth**: medido que el rastreador no ve la SPA y que `/compartir` sí le da las etiquetas. Conectar pegando un token del portal. **Departamentos**: CRUD con pantalla propia, cargo con departamento obligatorio y Cargos agrupados por él, **con pruebas** (incluido que desactivar uno mueve sus cargos a «Sin asignar»); comprobado en el navegador. **Convocatorias**: el ciclo (fecha, estado, post, enlace, postulantes) salió de la vacante a la convocatoria (migración 0010, que creó la 1 de cada vacante con su mismo slug y reapuntó las postulaciones); reconvocar numera la 2, hereda el post y cierra la anterior; una persona una vez por convocatoria. **Con pruebas** y comprobado en el navegador y contra la base: el enlace público viejo sigue dando 200. Publicación por API con la tarjeta completa (título, descripción y miniatura) y gestión del post (reescribir/borrar), **con pruebas**; ⚠️ nada probado todavía contra LinkedIn de verdad | M1.6 publicar a la hora programada | 4 |
 | **M2** Portal público y perfil del candidato | 🟢 | Formulario de 3 pasos con el esquema entero: comprobado en el navegador que se envía y que cae en las cuatro tablas. Foto y CV guardados en carpeta privada, **con pruebas** de que `/media` no los sirve | M2.2 el robot de ETL | 3 |
 | **M3** Pipeline de reclutamiento | 🟡 | Reglas de transición, **con pruebas** | M3.3 puntuación de coincidencia | 4 |
 | **M4** Directorio de contactos | 🟡 | Búsqueda, **con pruebas** | M4.1 exportar de verdad | 4 |

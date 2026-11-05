@@ -126,13 +126,25 @@ export function DashboardView() {
           <h2 className="text-sm font-semibold text-slate-800">Vacantes por estado</h2>
         </CardHeader>
         <CardBody className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {/* El ciclo es de la convocatoria actual; una vacante sin convocatoria no tiene vencimiento. */}
           {vacantes.map((v) => (
             <div key={v.id} className="rounded-lg border border-slate-100 p-3">
-              <p className="truncate text-sm font-medium text-slate-800">{v.titulo}</p>
-              <p className="mt-1 text-xs text-slate-500">
-                Vence: {new Date(v.fecha_limite).toLocaleDateString('es-EC')}
+              <p className="truncate text-sm font-medium text-slate-800">
+                {v.titulo}
+                {v.convocatoria_actual && v.convocatoria_actual.numero > 1 && (
+                  <span className="ml-1 text-xs font-normal text-slate-400">
+                    · conv. {v.convocatoria_actual.numero}
+                  </span>
+                )}
               </p>
-              <p className="mt-1 text-xs font-medium capitalize text-brand-600">{v.estado}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                {v.convocatoria_actual
+                  ? `Vence: ${new Date(v.convocatoria_actual.fecha_limite).toLocaleDateString('es-EC')}`
+                  : 'Sin convocatoria'}
+              </p>
+              <p className="mt-1 text-xs font-medium capitalize text-brand-600">
+                {v.convocatoria_actual?.estado ?? (v.activa ? 'sin convocar' : 'inactiva')}
+              </p>
             </div>
           ))}
         </CardBody>

@@ -1,19 +1,21 @@
-"""Una vacante es un cargo puesto en circulación.
+"""Una vacante es un cargo puesto en circulación: **las condiciones del puesto**.
 
 El título ya no se escribe: se elige el cargo y el título se copia de él al crearla.
-Es una copia deliberada, no un `join`. El título alimenta el `slug`, que es la URL
-pública por la que entra el postulante; si el título siguiera al catálogo, renombrar
-un cargo cambiaría la dirección de una vacante ya publicada y rompería los enlaces
-que la gente ya tiene.
+Es una copia deliberada, no un `join`: si el título siguiera al catálogo, renombrar un
+cargo cambiaría lo que ya se publicó.
 
-Tres cosas que se confunden y aquí son columnas distintas:
+Desde la migración 0010 la vacante **no lleva el ciclo**: ni fecha límite, ni estado de
+proceso, ni post, ni enlace público, ni postulantes. Todo eso vive en la
+**convocatoria** (`app/models/convocatoria.py`), porque una misma vacante se convoca
+varias veces y cada vez tiene que quedar registrada. La vacante queda con lo que no
+cambia entre convocatorias: sueldo, horario, contrato, campos y a quién puede llegar.
 
-- `estado`: en qué punto está el proceso de selección (abierta, cerrada, borrador).
-- `post_estado`: en qué punto está la publicación (borrador, programado, publicado, error).
-- `visibilidad`: a quién puede llegar (pública, interna, mixta).
+Lo que sí queda aquí y se confunde:
 
-Una vacante puede estar abierta con el post todavía en borrador, o publicada y ya
-cerrada. Meterlas en una sola columna obligaría a inventar estados combinados.
+- `activa`: si la vacante sigue en uso. Se desactiva, no se borra, como los cargos.
+- `visibilidad`: a quién puede llegar (pública, interna, mixta). Es del puesto, no del
+  ciclo: si una ronda tuviera que ser interna y la siguiente pública, habría que
+  moverla a la convocatoria; hoy no hace falta.
 """
 
 import uuid
@@ -26,11 +28,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
-ESTADOS = ("borrador", "abierta", "cerrada")
-# "compartido" NO es "publicado": al abrir el compositor de LinkedIn entregamos el
-# contenido, pero quien pulsa Publicar es la persona y el sistema no puede saber si lo
-# hizo. Decir "publicado" sin saberlo seria mentir en la pantalla.
-ESTADOS_DEL_POST = ("borrador", "programado", "compartido", "publicado", "error")
 VISIBILIDADES = ("publica", "interna", "mixta")
 
 
@@ -42,8 +39,6 @@ class Vacante(Base):
     # Copia del nombre del cargo en el momento de crearla. Ver el comentario de arriba.
     titulo: Mapped[str] = mapped_column(String(200), nullable=False)
     descripcion: Mapped[str] = mapped_column(Text, nullable=False)
-    slug: Mapped[str] = mapped_column(String(250), unique=True, nullable=False, index=True)
-    fecha_limite: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     # --- Condiciones del puesto ---
     remuneracion: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
@@ -58,35 +53,27 @@ class Vacante(Base):
     # libres por definición, así que no tienen tabla ni esquema fijo.
     campos_personalizados: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
 
-    # --- La publicación ---
-    asunto: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    post_cuerpo: Mapped[str | None] = mapped_column(Text, nullable=True)
-    post_imagen_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    post_programado_para: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    post_estado: Mapped[str] = mapped_column(String(20), default="borrador", nullable=False)
-    post_publicado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    post_error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    linkedin_post_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
-
     # --- Alcance ---
     visibilidad: Mapped[str] = mapped_column(String(20), default="publica", nullable=False)
     # Correos a los que se envía cuando la vacante es interna o mixta.
     destinatarios_internos: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
-    enviado_internamente_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     documento_adjunto_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     empleador_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
-    estado: Mapped[str] = mapped_column(String(50), default="borrador", nullable=False)
+    activa: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     creado_en: Mapped[datetime] = mapped_column(server_default=func.now())
 
     cargo: Mapped["Cargo"] = relationship(back_populates="vacantes")  # noqa: F821
     tipo_contrato: Mapped["TipoContrato | None"] = relationship(back_populates="vacantes")  # noqa: F821
-    postulaciones: Mapped[list["Postulacion"]] = relationship(back_populates="vacante")  # noqa: F821
+    # De la más reciente a la primera: la actual es `convocatorias[0]`.
+    convocatorias: Mapped[list["Convocatoria"]] = relationship(  # noqa: F821
+        back_populates="vacante", order_by="Convocatoria.numero.desc()", cascade="all, delete-orphan"
+    )
 
     @property
-    def acepta_postulaciones(self) -> bool:
-        """Solo una vacante abierta y no vencida recibe gente."""
-        return self.estado == "abierta" and self.fecha_limite > datetime.now(self.fecha_limite.tzinfo)
+    def convocatoria_actual(self) -> "Convocatoria | None":  # noqa: F821
+        """La última convocatoria, que es sobre la que se actúa desde la tarjeta."""
+        return self.convocatorias[0] if self.convocatorias else None
 
 
 class TokenLinkedIn(Base):

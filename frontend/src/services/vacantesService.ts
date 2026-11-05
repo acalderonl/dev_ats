@@ -1,6 +1,7 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut, apiUpload } from '@/lib/apiClient'
 import type {
   ConfiguracionGeneral,
+  Convocatoria,
   EstadoDelPost,
   EstadoLinkedIn,
   EstadoVacante,
@@ -10,59 +11,78 @@ import type {
   VistaPreviaDelPost,
 } from '@/types'
 
-/** Lo que el formulario manda. El título no está: sale del cargo. */
+/** El ciclo de una convocatoria: hasta cuándo, en qué estado, y con qué post. */
+export interface ConvocatoriaPayload {
+  fecha_limite: string
+  estado?: EstadoVacante
+  asunto?: string | null
+  post_cuerpo?: string | null
+  post_imagen_url?: string | null
+  post_programado_para?: string | null
+}
+
+/**
+ * Las condiciones del puesto. El título no está: sale del cargo.
+ * `primera_convocatoria` solo cuenta al crear: una vacante nace con su convocatoria 1.
+ */
 export interface VacantePayload {
   cargo_id: number
   descripcion: string
-  fecha_limite: string
   remuneracion?: string | null
   jornada_horas?: string | null
   hora_entrada?: string | null
   hora_salida?: string | null
   tipo_contrato_id?: number | null
   campos_personalizados?: { etiqueta: string; valor: string }[]
-  asunto?: string | null
-  post_cuerpo?: string | null
-  post_imagen_url?: string | null
-  post_programado_para?: string | null
-  estado?: EstadoVacante
   visibilidad?: string
   destinatarios_internos?: string[]
+  primera_convocatoria?: ConvocatoriaPayload
+}
+
+interface ResultadoDePublicacion {
+  post_estado: EstadoDelPost
+  linkedin_post_id: string | null
+  simulado: boolean
+  mensaje: string
 }
 
 export const vacantesService = {
   list: () => apiGet<Vacante[]>('/vacantes'),
   create: (data: VacantePayload) => apiPost<Vacante>('/vacantes', data),
   update: (id: string, data: VacantePayload) => apiPut<Vacante>(`/vacantes/${id}`, data),
-  cambiarEstado: (id: string, estado: EstadoVacante) =>
-    apiPatch<Vacante>(`/vacantes/${id}/estado`, { estado }),
-  cambiarEstadoDelPost: (id: string, post_estado: EstadoDelPost) =>
-    apiPatch<Vacante>(`/vacantes/${id}/post-estado`, { post_estado }),
+  /** Se desactiva, no se borra: tiene convocatorias y postulantes detrás. */
+  toggleActiva: (id: string) => apiPatch<Vacante>(`/vacantes/${id}/toggle-activa`),
+  /** Vuelve a convocar. La anterior se cierra si seguía abierta. */
+  abrirConvocatoria: (id: string, data: ConvocatoriaPayload) =>
+    apiPost<Convocatoria>(`/vacantes/${id}/convocatorias`, data),
   subirImagen: (file: File) => apiUpload<{ url: string }>('/vacantes/imagen', file),
-  vistaPrevia: (id: string) => apiGet<VistaPreviaDelPost>(`/vacantes/${id}/vista-previa`),
   /** La misma vista previa con lo que hay escrito en el formulario, sin guardar. */
   vistaPreviaSinGuardar: (data: VacantePayload) =>
     apiPost<VistaPreviaDelPost>('/vacantes/vista-previa', data),
+}
+
+/** Todo lo que se hace con una ronda concreta y su post. */
+export const convocatoriasService = {
+  update: (id: string, data: ConvocatoriaPayload) => apiPut<Convocatoria>(`/convocatorias/${id}`, data),
+  cambiarEstado: (id: string, estado: EstadoVacante) =>
+    apiPatch<Convocatoria>(`/convocatorias/${id}/estado`, { estado }),
+  cambiarEstadoDelPost: (id: string, post_estado: EstadoDelPost) =>
+    apiPatch<Convocatoria>(`/convocatorias/${id}/post-estado`, { post_estado }),
+  vistaPrevia: (id: string) => apiGet<VistaPreviaDelPost>(`/convocatorias/${id}/vista-previa`),
   /** Vía sin OAuth: prepara el texto y el enlace para publicar a mano. */
   compartirEnLinkedIn: (id: string) =>
-    apiPost<ParaCompartirEnLinkedIn>(`/vacantes/${id}/compartir-linkedin`),
+    apiPost<ParaCompartirEnLinkedIn>(`/convocatorias/${id}/compartir-linkedin`),
+  publicarEnLinkedIn: (id: string) =>
+    apiPost<ResultadoDePublicacion>(`/convocatorias/${id}/publicar-linkedin`),
   /** Reescribe el texto del post en LinkedIn con los datos de hoy. */
   actualizarPostEnLinkedIn: (id: string) =>
-    apiPatch<{ post_estado: EstadoDelPost; linkedin_post_id: string | null; simulado: boolean; mensaje: string }>(
-      `/vacantes/${id}/linkedin-post`,
-    ),
-  /** Lo borra de LinkedIn y devuelve la vacante a borrador. */
+    apiPatch<ResultadoDePublicacion>(`/convocatorias/${id}/linkedin-post`),
+  /** Lo borra de LinkedIn y devuelve el post a borrador. */
   borrarPostEnLinkedIn: (id: string) =>
-    apiDelete<{ post_estado: EstadoDelPost; linkedin_post_id: string | null; simulado: boolean; mensaje: string }>(
-      `/vacantes/${id}/linkedin-post`,
-    ),
-  publicarEnLinkedIn: (id: string) =>
-    apiPost<{ post_estado: EstadoDelPost; linkedin_post_id: string | null; simulado: boolean; mensaje: string }>(
-      `/vacantes/${id}/publicar-linkedin`,
-    ),
+    apiDelete<ResultadoDePublicacion>(`/convocatorias/${id}/linkedin-post`),
   enviarInterno: (id: string) =>
-    apiPost<{ enviados: number; mensaje: string }>(`/vacantes/${id}/enviar-interno`),
-  shareWhatsApp: (id: string) => apiGet<{ whatsapp_url: string }>(`/vacantes/${id}/share-whatsapp`),
+    apiPost<{ enviados: number; mensaje: string }>(`/convocatorias/${id}/enviar-interno`),
+  shareWhatsApp: (id: string) => apiGet<{ whatsapp_url: string }>(`/convocatorias/${id}/share-whatsapp`),
 }
 
 export const configuracionService = {

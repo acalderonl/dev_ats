@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.limites import limitar
+from app.models.convocatoria import Convocatoria
 from app.models.vacante import Vacante
 
 router = APIRouter()
@@ -37,8 +38,9 @@ def _origen(request: Request) -> str:
     return (request.headers.get("origin") or get_settings().frontend_origin).rstrip("/")
 
 
-def _resumen(vacante: Vacante) -> str:
+def _resumen(convocatoria: Convocatoria) -> str:
     """Una línea con lo que decide a alguien a pulsar: qué, cuánto y en qué horario."""
+    vacante = convocatoria.vacante
     partes = []
     if vacante.tipo_contrato:
         partes.append(vacante.tipo_contrato.nombre)
@@ -48,7 +50,7 @@ def _resumen(vacante: Vacante) -> str:
         partes.append(f"{vacante.hora_entrada:%H:%M}–{vacante.hora_salida:%H:%M}")
 
     cabecera = " · ".join(partes)
-    cuerpo = " ".join((vacante.post_cuerpo or vacante.descripcion or "").split())
+    cuerpo = " ".join((convocatoria.post_cuerpo or vacante.descripcion or "").split())
     texto = f"{cabecera}. {cuerpo}" if cabecera else cuerpo
     if len(texto) > LARGO_DE_LA_DESCRIPCION:
         texto = texto[: LARGO_DE_LA_DESCRIPCION - 1].rsplit(" ", 1)[0] + "…"
@@ -58,27 +60,38 @@ def _resumen(vacante: Vacante) -> str:
 @router.get("/{slug}", response_class=HTMLResponse, dependencies=[Depends(limitar("consulta"))])
 def pagina_para_compartir(slug: str, request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
     """Devuelve la vacante con sus etiquetas Open Graph, y redirige a quien sea humano."""
-    vacante = db.scalar(select(Vacante).options(selectinload(Vacante.tipo_contrato)).where(Vacante.slug == slug))
-    if vacante is None:
+    # El slug es de la convocatoria: cada ronda tiene su propio enlace.
+    convocatoria = db.scalar(
+        select(Convocatoria)
+        .options(selectinload(Convocatoria.vacante).selectinload(Vacante.tipo_contrato))
+        .where(Convocatoria.slug == slug)
+    )
+    if convocatoria is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vacante no encontrada")
+    vacante = convocatoria.vacante
 
     # Las mismas reglas que el portal: un borrador o una vacante interna no se comparte,
     # por mucho que alguien tenga el enlace.
-    limite = vacante.fecha_limite
+    limite = convocatoria.fecha_limite
     if limite.tzinfo is None:
         limite = limite.replace(tzinfo=timezone.utc)
-    if vacante.estado != "abierta" or vacante.visibilidad == "interna" or limite < datetime.now(timezone.utc):
+    if (
+        convocatoria.estado != "abierta"
+        or vacante.visibilidad == "interna"
+        or not vacante.activa
+        or limite < datetime.now(timezone.utc)
+    ):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Esta vacante no está disponible")
 
     origen = _origen(request)
-    destino = f"{origen}/postular/{vacante.slug}"
-    titulo = f"{vacante.asunto or vacante.titulo} — ANAI"
-    descripcion = _resumen(vacante)
-    # Solo se anuncia imagen si la vacante tiene una de verdad. El escudo no sirve de
-    # respaldo: es un SVG, y LinkedIn no los dibuja en las tarjetas —saldría un hueco
+    destino = f"{origen}/postular/{convocatoria.slug}"
+    titulo = f"{convocatoria.asunto or vacante.titulo} — ANAI"
+    descripcion = _resumen(convocatoria)
+    # Solo se anuncia imagen si la convocatoria tiene una de verdad. El escudo no sirve
+    # de respaldo: es un SVG, y LinkedIn no los dibuja en las tarjetas —saldría un hueco
     # en vez de una imagen—. Sin `og:image`, muestra una tarjeta solo de texto, que se
     # ve bien. La subida ya obliga a JPG, PNG, GIF o WebP.
-    imagen = vacante.post_imagen_url
+    imagen = convocatoria.post_imagen_url
     if imagen and imagen.startswith("/"):
         imagen = f"{origen}{imagen}"
 

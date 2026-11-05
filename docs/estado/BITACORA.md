@@ -8,7 +8,7 @@ una funcionalidad que funcione.
 
 ---
 
-## 2026-11-04 — Sesión 15 · Departamentos: el primer tramo de la nueva estructura
+## 2026-11-04 — Sesión 15 · Departamentos y convocatorias: la nueva estructura
 
 **Fase:** M1 — Cargos. Primer tramo de la reestructuración que pidió el dueño:
 `Departamento → Cargos → Vacantes → Convocatorias → Postulantes`. Hoy, Departamentos de
@@ -52,11 +52,47 @@ también se corrigieron, porque una prueba que pasa por otro motivo no prueba na
   cargos», y la de Cargos sale agrupada («Sin asignar · 3») con sus tarjetas dentro.
 - `flake8` y `tsc` limpios.
 
-**Lo que sigue: las convocatorias**
-Es el cambio grande, porque la fecha límite, el estado, el post, el enlace público y los
-postulantes **se mueven** de la vacante a la convocatoria. La migración tendrá que crear la
-«Convocatoria 1» de cada vacante existente con sus datos y reapuntar las postulaciones. Toca
-vacantes, público, compartir, pipeline, contactos, dashboard y sus pantallas.
+**Segundo tramo, el mismo día: las convocatorias**
+
+Era el cambio grande. La fecha límite, el estado, el post, el enlace público y los postulantes
+**se mudaron** de la vacante a una tabla nueva, `convocatorias`. La vacante queda con las
+condiciones del puesto y `activa`; la convocatoria lleva el ciclo, un `numero` por vacante y
+**su propio slug**, porque hace falta saber a cuál de las rondas se postuló alguien.
+
+- **La migración 0010 no pierde nada**: a cada vacante le crea su convocatoria 1 con los datos
+  que tenía —incluido el **mismo slug**, para que los enlaces ya repartidos sigan funcionando—,
+  reapunta las postulaciones, y solo entonces quita las columnas de la vacante. Comprobado
+  contra la base de desarrollo: la convocatoria 1 existe con su slug y sus 2 postulantes, y el
+  enlace público viejo responde **200** tanto en el portal como en `/compartir`.
+- Lo que se hace con el post (vista previa, compartir, publicar, reescribir, borrar, envío
+  interno, WhatsApp) pasó de `/vacantes/{id}/…` a `/convocatorias/{id}/…`. El texto del post
+  lo arma ahora `services/post_service.py`, que es lo mismo que usa la vista previa.
+- `POST /vacantes/{id}/convocatorias` abre la siguiente: **hereda asunto, texto e imagen** de
+  la anterior («con los mismos datos que ya se crearon»), arranca con el post en borrador, y
+  **cierra la anterior si seguía abierta**: dos rondas abiertas serían dos enlaces para lo mismo.
+- **Una persona, una vez por convocatoria** (decisión del dueño): repetir en la misma da 409
+  con explicación; en la siguiente ronda entra. La regla la aplica el endpoint y no una
+  restricción de base: los datos anteriores podían tenerla repetida y la migración habría
+  fallado a mitad de camino.
+- En la pantalla: la tarjeta dice «Convocatoria N de M · X postulantes», el botón **Nueva
+  convocatoria** pide solo la fecha de cierre, y el formulario sigue siendo uno (condiciones +
+  ciclo); al guardar una edición se separan en dos llamadas.
+
+**Lo que se rompió al mudar, y cómo se arregló.** 20 rutas en las pruebas apuntaban a
+`/vacantes/{id}/…`: se repuntaron con un `sed`, no a mano. 9 payloads a mano llevaban
+`fecha_limite` en la raíz: ahora va dentro de `primera_convocatoria`. Una prueba importaba
+`_etiqueta` del router; vive en el servicio. Y la fixture `db_limpia` borraba `vacantes` antes
+que `convocatorias`, que ahora depende de ella.
+
+**Verificado**
+- 223 pruebas en verde (eran 213). Las 10 nuevas de convocatorias pasaron a la primera: la
+  vacante nace con la 1, reconvocar numera la 2 y cierra la anterior, la nueva hereda el post
+  pero no que la anterior ya se publicó, la inactiva no se convoca, una persona una vez por
+  ronda, el enlace cerrado da 410, y editar la vacante no toca el ciclo.
+- En el navegador: la tarjeta sale «Convocatoria 1 · 2 postulantes»; pulsado **Nueva
+  convocatoria** con una fecha, pasa a «Convocatoria 2 de 2 · 0 postulantes» y «Post en
+  borrador». Quedó esa convocatoria 2 en la base de desarrollo, de prueba.
+- `flake8` y `tsc` limpios.
 
 ---
 

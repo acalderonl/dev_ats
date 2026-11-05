@@ -212,18 +212,35 @@ def crear_vacante(client: TestClient, reclutador_headers: dict[str, str]):
     fue un archivo en vez de cuatro.
     """
 
+    # Desde la migración 0010 el ciclo (fecha, estado, post) es de la **convocatoria**;
+    # la vacante nace con la suya. Estos campos del payload viejo se desvían a
+    # `primera_convocatoria` para que las pruebas sigan hablando en plano.
+    CAMPOS_DEL_CICLO = ("fecha_limite", "estado", "asunto", "post_cuerpo", "post_imagen_url", "post_programado_para")
+
     def _crear(cargo_id: int, *, dias_de_plazo: int = 10, estado: str = "abierta", **campos):
         fecha = datetime.now(timezone.utc) + timedelta(days=dias_de_plazo)
+        ciclo = {"fecha_limite": fecha.isoformat(), "estado": estado}
+        for campo in CAMPOS_DEL_CICLO:
+            if campo in campos:
+                ciclo[campo] = campos.pop(campo)
         cuerpo = {
             "cargo_id": cargo_id,
             "descripcion": "Descripción de prueba",
-            "fecha_limite": fecha.isoformat(),
-            "estado": estado,
+            "primera_convocatoria": ciclo,
             **campos,
         }
         respuesta = client.post("/api/v1/vacantes", json=cuerpo, headers=reclutador_headers)
         assert respuesta.status_code == 201, respuesta.text
-        return respuesta.json()
+        vacante = respuesta.json()
+        # Las pruebas que miran `vacante["slug"]` o `vacante["post_estado"]` siguen
+        # valiendo: se aplanan desde la convocatoria actual. `id` sigue siendo el de la
+        # vacante; `convocatoria_id` es el de la ronda, para las rutas de /convocatorias.
+        actual = vacante["convocatoria_actual"]
+        return {
+            **vacante,
+            "convocatoria_id": actual["id"],
+            **{k: actual[k] for k in ("slug", "estado", "post_estado", "fecha_limite", "asunto", "post_imagen_url")},
+        }
 
     return _crear
 
@@ -248,6 +265,7 @@ def db_limpia():
         for tabla in (
             "evaluaciones",
             "postulaciones",
+            "convocatorias",
             "vacantes",
             "tokens_linkedin",
             "usuario_permisos",

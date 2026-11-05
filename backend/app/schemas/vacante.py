@@ -4,8 +4,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
-from app.models.vacante import ESTADOS, ESTADOS_DEL_POST, VISIBILIDADES
+from app.models.vacante import VISIBILIDADES
 from app.schemas.cargo import PreguntaFiltroOut
+from app.schemas.convocatoria import ConvocatoriaCreate, ConvocatoriaOut
 
 MAXIMO_CAMPOS_PERSONALIZADOS = 20
 
@@ -24,11 +25,15 @@ class CampoPersonalizado(BaseModel):
 
 
 class VacanteCreate(BaseModel):
-    """El título no está: sale del cargo. Ver el comentario del modelo."""
+    """Las condiciones del puesto. El título no está: sale del cargo.
+
+    `primera_convocatoria` solo cuenta al **crear**: una vacante nace con su
+    convocatoria 1, para que «Nueva vacante» siga siendo un paso y no dos. Al editar se
+    ignora; el ciclo se toca desde `/convocatorias`.
+    """
 
     cargo_id: int
     descripcion: str
-    fecha_limite: datetime
 
     remuneracion: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     jornada_horas: Decimal | None = Field(default=None, gt=0, le=24, max_digits=4, decimal_places=2)
@@ -37,21 +42,10 @@ class VacanteCreate(BaseModel):
     tipo_contrato_id: int | None = None
     campos_personalizados: list[CampoPersonalizado] = []
 
-    asunto: str | None = Field(default=None, max_length=200)
-    post_cuerpo: str | None = None
-    post_imagen_url: str | None = Field(default=None, max_length=500)
-    post_programado_para: datetime | None = None
-
-    estado: str = "borrador"
     visibilidad: str = "publica"
     destinatarios_internos: list[EmailStr] = []
 
-    @field_validator("estado")
-    @classmethod
-    def estado_conocido(cls, v: str) -> str:
-        if v not in ESTADOS:
-            raise ValueError(f"Estado inválido: {v}. Debe ser uno de {', '.join(ESTADOS)}")
-        return v
+    primera_convocatoria: ConvocatoriaCreate | None = None
 
     @field_validator("visibilidad")
     @classmethod
@@ -78,8 +72,6 @@ class VacanteCreate(BaseModel):
         # no un caso válido que convenga dejar pasar en silencio.
         if self.visibilidad in ("interna", "mixta") and not self.destinatarios_internos:
             raise ValueError("Una vacante interna o mixta necesita al menos un correo destinatario")
-        if self.post_programado_para and self.post_programado_para <= datetime.now(self.post_programado_para.tzinfo):
-            raise ValueError("La fecha de publicación programada ya pasó")
         return self
 
 
@@ -96,8 +88,6 @@ class VacanteOut(BaseModel):
     cargo_id: int
     titulo: str
     descripcion: str
-    slug: str
-    fecha_limite: datetime
 
     remuneracion: Decimal | None
     jornada_horas: Decimal | None
@@ -109,29 +99,26 @@ class VacanteOut(BaseModel):
     tipo_contrato_nombre: str | None = None
     campos_personalizados: list[CampoPersonalizado]
 
-    asunto: str | None
-    post_cuerpo: str | None
-    post_imagen_url: str | None
-    post_programado_para: datetime | None
-    post_estado: str
-    post_publicado_en: datetime | None
-    post_error: str | None
-    linkedin_post_id: str | None
-
     visibilidad: str
     destinatarios_internos: list[str]
-    enviado_internamente_en: datetime | None
 
-    url_publica: str | None = None
     empleador_id: UUID
-    estado: str
+    activa: bool
     creado_en: datetime
+
+    # De la más reciente a la primera. La actual es la primera de la lista.
+    convocatorias: list[ConvocatoriaOut] = []
+    convocatoria_actual: ConvocatoriaOut | None = None
 
 
 class VacantePublicaOut(BaseModel):
+    """Lo que ve el candidato. `id` y `slug` son de la **convocatoria**: es a lo que se postula."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    vacante_id: UUID
+    numero: int
     titulo: str
     descripcion: str
     slug: str
@@ -145,81 +132,5 @@ class VacantePublicaOut(BaseModel):
     preguntas_filtro: list[PreguntaFiltroOut] = []
 
 
-class CambioDeEstado(BaseModel):
-    estado: str
-
-    @field_validator("estado")
-    @classmethod
-    def estado_conocido(cls, v: str) -> str:
-        if v not in ESTADOS:
-            raise ValueError(f"Estado inválido: {v}. Debe ser uno de {', '.join(ESTADOS)}")
-        return v
-
-
-class CambioDeEstadoDelPost(BaseModel):
-    post_estado: str
-
-    @field_validator("post_estado")
-    @classmethod
-    def estado_conocido(cls, v: str) -> str:
-        if v not in ESTADOS_DEL_POST:
-            raise ValueError(f"Estado de post inválido: {v}. Debe ser uno de {', '.join(ESTADOS_DEL_POST)}")
-        return v
-
-
-class VistaPreviaDelPost(BaseModel):
-    """Cómo se verá el post antes de publicarlo, y por dónde puede salir.
-
-    Los tres campos de `tarjeta_*` son lo que se le manda a la red social para que
-    dibuje la tarjeta del enlace. Van aquí para que la simulación enseñe **lo que de
-    verdad se envía** y no una reconstrucción parecida hecha en la pantalla.
-    """
-
-    asunto: str
-    cuerpo: str
-    imagen_url: str | None
-    enlace_para_postular: str
-    visibilidad: str
-    destinatarios_internos: list[str]
-    programado_para: datetime | None
-    caracteres: int
-
-    tarjeta_titulo: str
-    tarjeta_descripcion: str
-    tarjeta_dominio: str
-    # Quién aparecería publicando. Es el muro de quien conecta su cuenta.
-    autor: str
-
-
-class ResultadoDePublicacion(BaseModel):
-    post_estado: str
-    linkedin_post_id: str | None = None
-    simulado: bool = False
-    mensaje: str
-
-
-class EnvioInternoOut(BaseModel):
-    enviados: int
-    mensaje: str
-
-
 class ImagenSubidaOut(BaseModel):
     url: str
-
-
-class LinkedInPublishOut(BaseModel):
-    linkedin_post_id: str
-
-
-class WhatsAppShareOut(BaseModel):
-    whatsapp_url: str
-
-
-class ParaCompartirEnLinkedIn(BaseModel):
-    """Lo que la pantalla necesita para llevar la vacante a LinkedIn a mano."""
-
-    texto: str
-    # La URL con las etiquetas Open Graph, que es la que entiende el rastreador.
-    enlace_de_la_vacante: str
-    url_del_compositor: str
-    aviso: str

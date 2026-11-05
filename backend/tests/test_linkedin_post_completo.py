@@ -66,7 +66,7 @@ def espiar_publicacion(monkeypatch):
 
 
 def _publicar(client, headers, vacante):
-    return client.post(f"/api/v1/vacantes/{vacante['id']}/publicar-linkedin", headers=headers)
+    return client.post(f"/api/v1/convocatorias/{vacante['convocatoria_id']}/publicar-linkedin", headers=headers)
 
 
 # -------------------------------------------------- La tarjeta del enlace
@@ -170,7 +170,7 @@ def test_el_texto_lleva_la_fecha_limite_y_etiquetas(
 
 def test_las_etiquetas_van_sin_tildes():
     """Una etiqueta con tilde y otra sin ella son dos etiquetas distintas."""
-    from app.api.v1.vacantes import _etiqueta
+    from app.services.post_service import etiqueta as _etiqueta
 
     assert _etiqueta("Analista de Reclutamiento") == "#AnalistaDeReclutamiento"
     assert _etiqueta("Administración") == "#Administracion"
@@ -194,7 +194,9 @@ def test_se_puede_reescribir_el_texto_del_post(
     vacante = crear_vacante(crear_cargo(unique_suffix)["id"], estado="abierta")
     _publicar(client, reclutador_headers, vacante)
 
-    respuesta = client.patch(f"/api/v1/vacantes/{vacante['id']}/linkedin-post", headers=reclutador_headers)
+    respuesta = client.patch(
+        f"/api/v1/convocatorias/{vacante['convocatoria_id']}/linkedin-post", headers=reclutador_headers
+    )
 
     assert respuesta.status_code == 200
     assert cambios["post_urn"] == "urn:li:share:7777"
@@ -216,14 +218,16 @@ def test_al_borrar_el_post_la_vacante_vuelve_a_borrador(
     vacante = crear_vacante(crear_cargo(unique_suffix)["id"], estado="abierta")
     _publicar(client, reclutador_headers, vacante)
 
-    respuesta = client.delete(f"/api/v1/vacantes/{vacante['id']}/linkedin-post", headers=reclutador_headers)
+    respuesta = client.delete(
+        f"/api/v1/convocatorias/{vacante['convocatoria_id']}/linkedin-post", headers=reclutador_headers
+    )
 
     assert respuesta.status_code == 200
     actualizada = next(
         v for v in client.get("/api/v1/vacantes", headers=reclutador_headers).json() if v["id"] == vacante["id"]
     )
-    assert actualizada["post_estado"] == "borrador"
-    assert actualizada["linkedin_post_id"] is None
+    assert actualizada["convocatoria_actual"]["post_estado"] == "borrador"
+    assert actualizada["convocatoria_actual"]["linkedin_post_id"] is None
 
 
 def test_no_se_toca_en_linkedin_una_publicacion_simulada(
@@ -233,7 +237,9 @@ def test_no_se_toca_en_linkedin_una_publicacion_simulada(
     vacante = crear_vacante(crear_cargo(unique_suffix)["id"], estado="abierta")
     _publicar(client, reclutador_headers, vacante)
 
-    respuesta = client.delete(f"/api/v1/vacantes/{vacante['id']}/linkedin-post", headers=reclutador_headers)
+    respuesta = client.delete(
+        f"/api/v1/convocatorias/{vacante['convocatoria_id']}/linkedin-post", headers=reclutador_headers
+    )
 
     assert respuesta.status_code == 400
     assert "simulada" in respuesta.json()["detail"]
@@ -244,7 +250,9 @@ def test_una_vacante_sin_post_no_se_puede_borrar_de_linkedin(
 ):
     vacante = crear_vacante(crear_cargo(unique_suffix)["id"], estado="abierta")
 
-    respuesta = client.delete(f"/api/v1/vacantes/{vacante['id']}/linkedin-post", headers=reclutador_headers)
+    respuesta = client.delete(
+        f"/api/v1/convocatorias/{vacante['convocatoria_id']}/linkedin-post", headers=reclutador_headers
+    )
 
     assert respuesta.status_code == 400
     assert "no está publicada" in respuesta.json()["detail"]
@@ -254,10 +262,15 @@ def test_una_vacante_sin_post_no_se_puede_borrar_de_linkedin(
 
 
 def _borrador(cargo_id: int, **extra) -> dict:
+    """Un formulario a medias. Lo que es del ciclo va dentro de `primera_convocatoria`."""
+    ciclo = {"fecha_limite": "2027-01-01T00:00:00Z"}
+    for campo in ("asunto", "post_cuerpo", "post_imagen_url", "estado"):
+        if campo in extra:
+            ciclo[campo] = extra.pop(campo)
     return {
         "cargo_id": cargo_id,
         "descripcion": "Buscamos a alguien con ganas",
-        "fecha_limite": "2027-01-01T00:00:00Z",
+        "primera_convocatoria": ciclo,
         **extra,
     }
 
@@ -307,7 +320,9 @@ def test_la_vista_previa_y_lo_que_se_publica_son_el_mismo_texto(
     que sale, y "parecido" no sirve para decidir si el post está listo.
     """
     vacante = crear_vacante(crear_cargo(unique_suffix)["id"], estado="abierta", asunto="Analista")
-    previa = client.get(f"/api/v1/vacantes/{vacante['id']}/vista-previa", headers=reclutador_headers).json()
+    previa = client.get(
+        f"/api/v1/convocatorias/{vacante['convocatoria_id']}/vista-previa", headers=reclutador_headers
+    ).json()
 
     _publicar(client, reclutador_headers, vacante)
 

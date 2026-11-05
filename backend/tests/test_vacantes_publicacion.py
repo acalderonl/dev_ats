@@ -31,7 +31,7 @@ def test_remuneracion_negativa_se_rechaza(client, reclutador_headers, unique_suf
         json={
             "cargo_id": cargo_id,
             "descripcion": "x",
-            "fecha_limite": (datetime.now(timezone.utc) + timedelta(days=5)).isoformat(),
+            "primera_convocatoria": {"fecha_limite": (datetime.now(timezone.utc) + timedelta(days=5)).isoformat()},
             "remuneracion": "-100",
         },
         headers=reclutador_headers,
@@ -46,7 +46,7 @@ def test_entrada_y_salida_no_pueden_coincidir(client, reclutador_headers, unique
         json={
             "cargo_id": cargo_id,
             "descripcion": "x",
-            "fecha_limite": (datetime.now(timezone.utc) + timedelta(days=5)).isoformat(),
+            "primera_convocatoria": {"fecha_limite": (datetime.now(timezone.utc) + timedelta(days=5)).isoformat()},
             "hora_entrada": "09:00:00",
             "hora_salida": "09:00:00",
         },
@@ -80,7 +80,7 @@ def test_campos_personalizados_con_etiqueta_repetida_se_rechazan(
         json={
             "cargo_id": cargo_id,
             "descripcion": "x",
-            "fecha_limite": (datetime.now(timezone.utc) + timedelta(days=5)).isoformat(),
+            "primera_convocatoria": {"fecha_limite": (datetime.now(timezone.utc) + timedelta(days=5)).isoformat()},
             "campos_personalizados": [
                 {"etiqueta": "Ciudad", "valor": "Quito"},
                 {"etiqueta": "ciudad", "valor": "Guayaquil"},
@@ -98,7 +98,7 @@ def test_campo_personalizado_sin_etiqueta_se_rechaza(client, reclutador_headers,
         json={
             "cargo_id": cargo_id,
             "descripcion": "x",
-            "fecha_limite": (datetime.now(timezone.utc) + timedelta(days=5)).isoformat(),
+            "primera_convocatoria": {"fecha_limite": (datetime.now(timezone.utc) + timedelta(days=5)).isoformat()},
             "campos_personalizados": [{"etiqueta": "   ", "valor": "algo"}],
         },
         headers=reclutador_headers,
@@ -115,8 +115,11 @@ def test_estado_invalido_se_rechaza(client, reclutador_headers, unique_suffix, c
         json={
             "cargo_id": cargo_id,
             "descripcion": "x",
-            "fecha_limite": (datetime.now(timezone.utc) + timedelta(days=5)).isoformat(),
-            "estado": estado,
+            # El estado es del ciclo, así que va dentro de la convocatoria.
+            "primera_convocatoria": {
+                "fecha_limite": (datetime.now(timezone.utc) + timedelta(days=5)).isoformat(),
+                "estado": estado,
+            },
         },
         headers=reclutador_headers,
     )
@@ -131,7 +134,7 @@ def test_interna_sin_destinatarios_se_rechaza(client, reclutador_headers, unique
         json={
             "cargo_id": cargo_id,
             "descripcion": "x",
-            "fecha_limite": (datetime.now(timezone.utc) + timedelta(days=5)).isoformat(),
+            "primera_convocatoria": {"fecha_limite": (datetime.now(timezone.utc) + timedelta(days=5)).isoformat()},
             "visibilidad": "interna",
             "destinatarios_internos": [],
         },
@@ -149,7 +152,7 @@ def test_no_se_puede_abrir_vacante_de_cargo_desactivado(client, reclutador_heade
         json={
             "cargo_id": cargo["id"],
             "descripcion": "x",
-            "fecha_limite": (datetime.now(timezone.utc) + timedelta(days=5)).isoformat(),
+            "primera_convocatoria": {"fecha_limite": (datetime.now(timezone.utc) + timedelta(days=5)).isoformat()},
         },
         headers=reclutador_headers,
     )
@@ -163,7 +166,7 @@ def test_programar_sin_fecha_se_rechaza(client, reclutador_headers, unique_suffi
     vacante = crear_vacante(cargo_id)
 
     respuesta = client.patch(
-        f"/api/v1/vacantes/{vacante['id']}/post-estado",
+        f"/api/v1/convocatorias/{vacante['convocatoria_id']}/post-estado",
         json={"post_estado": "programado"},
         headers=reclutador_headers,
     )
@@ -179,7 +182,7 @@ def test_programar_con_fecha_funciona(client, reclutador_headers, unique_suffix,
     vacante = crear_vacante(cargo_id, post_programado_para=cuando.isoformat())
 
     respuesta = client.patch(
-        f"/api/v1/vacantes/{vacante['id']}/post-estado",
+        f"/api/v1/convocatorias/{vacante['convocatoria_id']}/post-estado",
         json={"post_estado": "programado"},
         headers=reclutador_headers,
     )
@@ -196,8 +199,10 @@ def test_programar_en_el_pasado_se_rechaza(client, reclutador_headers, unique_su
         json={
             "cargo_id": cargo_id,
             "descripcion": "x",
-            "fecha_limite": (datetime.now(timezone.utc) + timedelta(days=5)).isoformat(),
-            "post_programado_para": ayer.isoformat(),
+            "primera_convocatoria": {
+                "fecha_limite": (datetime.now(timezone.utc) + timedelta(days=5)).isoformat(),
+                "post_programado_para": ayer.isoformat(),
+            },
         },
         headers=reclutador_headers,
     )
@@ -210,7 +215,7 @@ def test_publicado_no_se_pone_a_mano(client, reclutador_headers, unique_suffix, 
     vacante = crear_vacante(cargo_id)
 
     respuesta = client.patch(
-        f"/api/v1/vacantes/{vacante['id']}/post-estado",
+        f"/api/v1/convocatorias/{vacante['convocatoria_id']}/post-estado",
         json={"post_estado": "publicado"},
         headers=reclutador_headers,
     )
@@ -229,7 +234,9 @@ def test_vista_previa_incluye_condiciones_y_enlace(
         campos_personalizados=[{"etiqueta": "Ciudad", "valor": "Quito"}],
     )
 
-    previa = client.get(f"/api/v1/vacantes/{vacante['id']}/vista-previa", headers=reclutador_headers).json()
+    previa = client.get(
+        f"/api/v1/convocatorias/{vacante['convocatoria_id']}/vista-previa", headers=reclutador_headers
+    ).json()
 
     assert previa["asunto"] == "Buscamos talento"
     assert "900.00" in previa["cuerpo"]
@@ -245,7 +252,9 @@ def test_publicar_sin_credenciales_queda_marcado_como_simulado(
     cargo_id = crear_cargo(unique_suffix)["id"]
     vacante = crear_vacante(cargo_id)
 
-    respuesta = client.post(f"/api/v1/vacantes/{vacante['id']}/publicar-linkedin", headers=reclutador_headers)
+    respuesta = client.post(
+        f"/api/v1/convocatorias/{vacante['convocatoria_id']}/publicar-linkedin", headers=reclutador_headers
+    )
 
     cuerpo = respuesta.json()
     assert respuesta.status_code == 200
@@ -260,7 +269,9 @@ def test_vacante_interna_no_se_publica_en_linkedin(
     cargo_id = crear_cargo(unique_suffix)["id"]
     vacante = crear_vacante(cargo_id, visibilidad="interna", destinatarios_internos=["alguien@empresa.com"])
 
-    respuesta = client.post(f"/api/v1/vacantes/{vacante['id']}/publicar-linkedin", headers=reclutador_headers)
+    respuesta = client.post(
+        f"/api/v1/convocatorias/{vacante['convocatoria_id']}/publicar-linkedin", headers=reclutador_headers
+    )
 
     assert respuesta.status_code == 400
     assert "interna" in respuesta.json()["detail"]
@@ -270,7 +281,9 @@ def test_vacante_publica_no_tiene_envio_interno(client, reclutador_headers, uniq
     cargo_id = crear_cargo(unique_suffix)["id"]
     vacante = crear_vacante(cargo_id, visibilidad="publica")
 
-    respuesta = client.post(f"/api/v1/vacantes/{vacante['id']}/enviar-interno", headers=reclutador_headers)
+    respuesta = client.post(
+        f"/api/v1/convocatorias/{vacante['convocatoria_id']}/enviar-interno", headers=reclutador_headers
+    )
 
     assert respuesta.status_code == 400
 
@@ -282,14 +295,14 @@ def test_editar_no_cambia_el_slug(client, reclutador_headers, unique_suffix, cre
 
     actualizada = client.put(
         f"/api/v1/vacantes/{vacante['id']}",
+        # Solo condiciones: el ciclo (fecha, estado) ya no se edita por aquí.
         json={
             "cargo_id": cargo_id,
             "descripcion": "Descripción cambiada del todo",
-            "fecha_limite": (datetime.now(timezone.utc) + timedelta(days=20)).isoformat(),
-            "estado": "abierta",
         },
         headers=reclutador_headers,
     ).json()
 
-    assert actualizada["slug"] == vacante["slug"]
+    # El slug es de la convocatoria y no se recalcula: ya está repartido.
+    assert actualizada["convocatoria_actual"]["slug"] == vacante["slug"]
     assert actualizada["descripcion"] == "Descripción cambiada del todo"

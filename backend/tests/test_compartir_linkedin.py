@@ -106,7 +106,9 @@ def test_devuelve_el_texto_y_el_compositor(client, reclutador_headers, unique_su
         crear_cargo, crear_vacante, unique_suffix, asunto="Buscamos analista", remuneracion="900.00"
     )
 
-    cuerpo = client.post(f"/api/v1/vacantes/{vacante['id']}/compartir-linkedin", headers=reclutador_headers).json()
+    cuerpo = client.post(
+        f"/api/v1/convocatorias/{vacante['convocatoria_id']}/compartir-linkedin", headers=reclutador_headers
+    ).json()
 
     assert "Buscamos analista" in cuerpo["texto"]
     assert "900.00" in cuerpo["texto"]
@@ -126,12 +128,12 @@ def test_queda_como_compartido_y_no_como_publicado(
     """
     vacante = _vacante_compartible(crear_cargo, crear_vacante, unique_suffix)
 
-    client.post(f"/api/v1/vacantes/{vacante['id']}/compartir-linkedin", headers=reclutador_headers)
+    client.post(f"/api/v1/convocatorias/{vacante['convocatoria_id']}/compartir-linkedin", headers=reclutador_headers)
 
     actualizada = next(
         v for v in client.get("/api/v1/vacantes", headers=reclutador_headers).json() if v["id"] == vacante["id"]
     )
-    assert actualizada["post_estado"] == "compartido"
+    assert actualizada["convocatoria_actual"]["post_estado"] == "compartido"
 
 
 def test_una_vacante_interna_no_se_prepara(client, reclutador_headers, unique_suffix, crear_cargo, crear_vacante):
@@ -142,7 +144,9 @@ def test_una_vacante_interna_no_se_prepara(client, reclutador_headers, unique_su
         destinatarios_internos=["alguien@empresa.com"],
     )
 
-    respuesta = client.post(f"/api/v1/vacantes/{vacante['id']}/compartir-linkedin", headers=reclutador_headers)
+    respuesta = client.post(
+        f"/api/v1/convocatorias/{vacante['convocatoria_id']}/compartir-linkedin", headers=reclutador_headers
+    )
 
     assert respuesta.status_code == 400
     assert "interna" in respuesta.json()["detail"]
@@ -152,7 +156,9 @@ def test_un_borrador_no_se_prepara(client, reclutador_headers, unique_suffix, cr
     """Si se pudiera, LinkedIn mostraría una tarjeta que lleva a un 404."""
     vacante = crear_vacante(crear_cargo(unique_suffix)["id"], estado="borrador")
 
-    respuesta = client.post(f"/api/v1/vacantes/{vacante['id']}/compartir-linkedin", headers=reclutador_headers)
+    respuesta = client.post(
+        f"/api/v1/convocatorias/{vacante['convocatoria_id']}/compartir-linkedin", headers=reclutador_headers
+    )
 
     assert respuesta.status_code == 400
     assert "abierta" in respuesta.json()["detail"]

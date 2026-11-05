@@ -15,7 +15,12 @@ import type {
 } from '@/types'
 import { cargosService, type CargoCreate } from '@/services/cargosService'
 import { catalogosService } from '@/services/catalogosService'
-import { vacantesService, type VacantePayload } from '@/services/vacantesService'
+import {
+  convocatoriasService,
+  vacantesService,
+  type ConvocatoriaPayload,
+  type VacantePayload,
+} from '@/services/vacantesService'
 import { postulacionesService } from '@/services/postulacionesService'
 import { contactosService } from '@/services/contactosService'
 import { usuariosService } from '@/services/usuariosService'
@@ -46,11 +51,17 @@ interface DataState {
   fetchVacantes: () => Promise<void>
   createVacante: (data: VacantePayload) => Promise<Vacante>
   updateVacante: (id: string, data: VacantePayload) => Promise<Vacante>
-  cambiarEstadoVacante: (id: string, estado: EstadoVacante) => Promise<void>
-  cambiarEstadoDelPost: (id: string, estado: EstadoDelPost) => Promise<void>
-  publicarEnLinkedIn: (id: string) => Promise<{ simulado: boolean; mensaje: string }>
-  enviarInterno: (id: string) => Promise<string>
-  shareWhatsApp: (id: string) => Promise<string>
+  toggleActivaVacante: (id: string) => Promise<void>
+  /** Vuelve a convocar la vacante; la ronda anterior se cierra si seguía abierta. */
+  abrirConvocatoria: (vacanteId: string, data: ConvocatoriaPayload) => Promise<void>
+  // Lo que sigue actúa sobre una **convocatoria** (su id), no sobre la vacante: el
+  // ciclo y el post son de la ronda.
+  actualizarConvocatoria: (convocatoriaId: string, data: ConvocatoriaPayload) => Promise<void>
+  cambiarEstadoConvocatoria: (convocatoriaId: string, estado: EstadoVacante) => Promise<void>
+  cambiarEstadoDelPost: (convocatoriaId: string, estado: EstadoDelPost) => Promise<void>
+  publicarEnLinkedIn: (convocatoriaId: string) => Promise<{ simulado: boolean; mensaje: string }>
+  enviarInterno: (convocatoriaId: string) => Promise<string>
+  shareWhatsApp: (convocatoriaId: string) => Promise<string>
 
   fetchPostulaciones: (filters?: { vacante_id?: string }) => Promise<void>
   authorizePostulacion: (id: string) => Promise<void>
@@ -132,26 +143,40 @@ export const useDataStore = create<DataState>((set, get) => ({
     set((s) => ({ vacantes: s.vacantes.map((v) => (v.id === id ? vacante : v)) }))
     return vacante
   },
-  cambiarEstadoVacante: async (id, estado) => {
-    const vacante = await vacantesService.cambiarEstado(id, estado)
+  toggleActivaVacante: async (id) => {
+    const vacante = await vacantesService.toggleActiva(id)
     set((s) => ({ vacantes: s.vacantes.map((v) => (v.id === id ? vacante : v)) }))
   },
-  cambiarEstadoDelPost: async (id, estado) => {
-    const vacante = await vacantesService.cambiarEstadoDelPost(id, estado)
-    set((s) => ({ vacantes: s.vacantes.map((v) => (v.id === id ? vacante : v)) }))
+  abrirConvocatoria: async (vacanteId, data) => {
+    await vacantesService.abrirConvocatoria(vacanteId, data)
+    await get().fetchVacantes()
   },
-  publicarEnLinkedIn: async (id) => {
-    const resultado = await vacantesService.publicarEnLinkedIn(id)
+  // Las acciones sobre una convocatoria devuelven la convocatoria, no la vacante, así
+  // que se vuelve a pedir la lista: es lo que mantiene a `convocatoria_actual` al día.
+  actualizarConvocatoria: async (convocatoriaId, data) => {
+    await convocatoriasService.update(convocatoriaId, data)
+    await get().fetchVacantes()
+  },
+  cambiarEstadoConvocatoria: async (convocatoriaId, estado) => {
+    await convocatoriasService.cambiarEstado(convocatoriaId, estado)
+    await get().fetchVacantes()
+  },
+  cambiarEstadoDelPost: async (convocatoriaId, estado) => {
+    await convocatoriasService.cambiarEstadoDelPost(convocatoriaId, estado)
+    await get().fetchVacantes()
+  },
+  publicarEnLinkedIn: async (convocatoriaId) => {
+    const resultado = await convocatoriasService.publicarEnLinkedIn(convocatoriaId)
     await get().fetchVacantes()
     return { simulado: resultado.simulado, mensaje: resultado.mensaje }
   },
-  enviarInterno: async (id) => {
-    const { mensaje } = await vacantesService.enviarInterno(id)
+  enviarInterno: async (convocatoriaId) => {
+    const { mensaje } = await convocatoriasService.enviarInterno(convocatoriaId)
     await get().fetchVacantes()
     return mensaje
   },
-  shareWhatsApp: async (id) => {
-    const { whatsapp_url } = await vacantesService.shareWhatsApp(id)
+  shareWhatsApp: async (convocatoriaId) => {
+    const { whatsapp_url } = await convocatoriasService.shareWhatsApp(convocatoriaId)
     return whatsapp_url
   },
 
