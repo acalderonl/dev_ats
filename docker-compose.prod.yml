@@ -1,0 +1,83 @@
+# Despliegue en un servidor propio (Compute Engine de Google Cloud).
+#
+# Diferencias con `docker-compose.yml`, que es el de tu equipo:
+#
+# - **Solo Caddy publica puertos.** La base de datos, la API y el frontend se hablan
+#   por la red interna de Docker y no son alcanzables desde internet. En desarrollo
+#   están expuestos para poder trastear; en un servidor eso es superficie regalada.
+# - **Sin montar el código.** La imagen lleva dentro la versión desplegada, así que lo
+#   que corre es exactamente lo que se construyó, no lo que haya en el disco.
+# - **`ENTORNO=produccion`**: el seed no crea cuentas ni cargos de demo.
+# - **`restart: always`**: si la máquina se reinicia, todo vuelve solo.
+#
+# Se usa con el fichero de variables aparte:
+#     docker compose -f docker-compose.prod.yml --env-file .env.produccion up -d --build
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?falta POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-ats}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-ats}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-ats}
+      SECRET_KEY: ${SECRET_KEY:?falta SECRET_KEY - generala con openssl rand -base64 48}
+      ENTORNO: produccion
+      # Solo se usan si la base no tiene ningun usuario. Despues sobran.
+      ADMIN_INICIAL_EMAIL: ${ADMIN_INICIAL_EMAIL:-}
+      ADMIN_INICIAL_PASSWORD: ${ADMIN_INICIAL_PASSWORD:-}
+    volumes:
+      # Las imagenes de los posts. Sobrevive a `down`, no a `down -v`.
+      - media_data:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: always
+    environment:
+      PORT: 8080
+      # nginx reenvia /api aqui. El navegador nunca habla con el backend
+      # directamente, asi que no hay CORS ni hay que publicar la API.
+      API_URL: http://backend:8000
+    depends_on:
+      - backend
+
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMINIO: ${DOMINIO:?falta DOMINIO - el nombre al que apunta tu DNS}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Aqui guarda los certificados. Sin este volumen los pediria otra vez en cada
+      # despliegue, y Let's Encrypt limita cuantas veces se puede pedir por semana.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+
+volumes:
+  postgres_data:
+  media_data:
+  caddy_data:
+  caddy_config:

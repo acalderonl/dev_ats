@@ -1,0 +1,39 @@
+# Caddy es lo único que mira a internet. Se encarga del HTTPS y pasa todo al frontend.
+#
+# Por qué Caddy y no nginx aquí: pide el certificado a Let's Encrypt solo, lo renueva
+# solo, y redirige HTTP a HTTPS sin configurarlo. Con nginx habría que montar certbot
+# y acordarse de renovar. Para un entorno que nadie va a vigilar a diario, eso importa.
+#
+# Requisito: que el DNS de $DOMINIO apunte YA a la IP de la máquina antes de levantar.
+# Let's Encrypt comprueba que el dominio es tuyo pidiéndolo por el puerto 80; si el DNS
+# todavía no ha propagado, el certificado falla y Caddy reintenta con espera creciente.
+
+{$DOMINIO} {
+	encode gzip
+
+	# El frontend sirve la aplicación y reenvía /api al backend.
+	reverse_proxy frontend:8080
+
+	# Subir un CV puede tardar: el servidor lo lee y se lo manda a Claude.
+	request_body {
+		max_size 20MB
+	}
+
+	header {
+		# No dejar que el navegador adivine el tipo de un fichero.
+		X-Content-Type-Options nosniff
+		# Que la aplicación no se pueda incrustar en un iframe ajeno.
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		# Un año de HTTPS obligatorio para este dominio.
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	log {
+		output file /data/acceso.log {
+			roll_size 10MB
+			roll_keep 5
+		}
+	}
+}

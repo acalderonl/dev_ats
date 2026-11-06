@@ -1,25 +1,33 @@
 import { create } from 'zustand'
 import type {
   Cargo,
+  CatalogoItem,
+  CatalogoTipo,
   Contacto,
+  EstadoDelPost,
   EstadoPipeline,
+  EstadoVacante,
   Evaluacion,
-  PreguntaFiltro,
   Postulacion,
-  TipoRespuesta,
   Usuario,
   Vacante,
   RolNombre,
 } from '@/types'
-import { cargosService } from '@/services/cargosService'
-import { vacantesService } from '@/services/vacantesService'
+import { cargosService, type CargoCreate } from '@/services/cargosService'
+import { catalogosService } from '@/services/catalogosService'
+import {
+  convocatoriasService,
+  vacantesService,
+  type ConvocatoriaPayload,
+  type VacantePayload,
+} from '@/services/vacantesService'
 import { postulacionesService } from '@/services/postulacionesService'
 import { contactosService } from '@/services/contactosService'
 import { usuariosService } from '@/services/usuariosService'
 
 interface DataState {
   cargos: Cargo[]
-  preguntasPorCargo: Record<number, PreguntaFiltro[]>
+  catalogos: Record<CatalogoTipo, CatalogoItem[]>
   vacantes: Vacante[]
   postulaciones: Postulacion[]
   contactos: Contacto[]
@@ -27,20 +35,33 @@ interface DataState {
   usuarios: Usuario[]
 
   fetchCargos: () => Promise<void>
-  createCargo: (data: { nombre: string; departamento?: string; descripcion?: string }) => Promise<Cargo>
+  createCargo: (data: CargoCreate) => Promise<Cargo>
+  updateCargo: (id: number, data: CargoCreate) => Promise<Cargo>
   toggleCargoActivo: (id: number) => Promise<void>
-  fetchPreguntas: (cargoId: number) => Promise<void>
-  addPregunta: (
-    cargoId: number,
-    data: { pregunta: string; tipo_respuesta: TipoRespuesta; es_eliminatoria: boolean }
+
+  fetchCatalogo: (tipo: CatalogoTipo) => Promise<void>
+  createCatalogoItem: (tipo: CatalogoTipo, nombre: string) => Promise<CatalogoItem>
+  updateCatalogoItem: (
+    tipo: CatalogoTipo,
+    id: number,
+    data: { nombre?: string; activo?: boolean }
   ) => Promise<void>
-  removePregunta: (cargoId: number, preguntaId: number) => Promise<void>
+  deleteCatalogoItem: (tipo: CatalogoTipo, id: number) => Promise<void>
 
   fetchVacantes: () => Promise<void>
-  createVacante: (data: { titulo: string; cargo_id: number; descripcion: string; fecha_limite: string }) => Promise<Vacante>
-  publishLinkedIn: (id: string) => Promise<void>
-  shareWhatsApp: (id: string) => Promise<string>
-  cerrarVacante: (id: string) => Promise<void>
+  createVacante: (data: VacantePayload) => Promise<Vacante>
+  updateVacante: (id: string, data: VacantePayload) => Promise<Vacante>
+  toggleActivaVacante: (id: string) => Promise<void>
+  /** Vuelve a convocar la vacante; la ronda anterior se cierra si seguía abierta. */
+  abrirConvocatoria: (vacanteId: string, data: ConvocatoriaPayload) => Promise<void>
+  // Lo que sigue actúa sobre una **convocatoria** (su id), no sobre la vacante: el
+  // ciclo y el post son de la ronda.
+  actualizarConvocatoria: (convocatoriaId: string, data: ConvocatoriaPayload) => Promise<void>
+  cambiarEstadoConvocatoria: (convocatoriaId: string, estado: EstadoVacante) => Promise<void>
+  cambiarEstadoDelPost: (convocatoriaId: string, estado: EstadoDelPost) => Promise<void>
+  publicarEnLinkedIn: (convocatoriaId: string) => Promise<{ simulado: boolean; mensaje: string }>
+  enviarInterno: (convocatoriaId: string) => Promise<string>
+  shareWhatsApp: (convocatoriaId: string) => Promise<string>
 
   fetchPostulaciones: (filters?: { vacante_id?: string }) => Promise<void>
   authorizePostulacion: (id: string) => Promise<void>
@@ -61,7 +82,14 @@ interface DataState {
 
 export const useDataStore = create<DataState>((set, get) => ({
   cargos: [],
-  preguntasPorCargo: {},
+  catalogos: {
+    'nombres-cargo': [],
+    clasificaciones: [],
+    'niveles-educacion': [],
+    titulos: [],
+    'areas-academicas': [],
+    'tipos-contrato': [],
+  },
   vacantes: [],
   postulaciones: [],
   contactos: [],
@@ -74,21 +102,34 @@ export const useDataStore = create<DataState>((set, get) => ({
     set((s) => ({ cargos: [...s.cargos, cargo] }))
     return cargo
   },
+  updateCargo: async (id, data) => {
+    const cargo = await cargosService.update(id, data)
+    set((s) => ({ cargos: s.cargos.map((c) => (c.id === id ? cargo : c)) }))
+    return cargo
+  },
   toggleCargoActivo: async (id) => {
     const cargo = await cargosService.toggleActivo(id)
     set((s) => ({ cargos: s.cargos.map((c) => (c.id === id ? cargo : c)) }))
   },
-  fetchPreguntas: async (cargoId) => {
-    const preguntas = await cargosService.listPreguntas(cargoId)
-    set((s) => ({ preguntasPorCargo: { ...s.preguntasPorCargo, [cargoId]: preguntas } }))
+
+  fetchCatalogo: async (tipo) => {
+    const items = await catalogosService.list(tipo)
+    set((s) => ({ catalogos: { ...s.catalogos, [tipo]: items } }))
   },
-  addPregunta: async (cargoId, data) => {
-    await cargosService.addPregunta(cargoId, data)
-    await get().fetchPreguntas(cargoId)
+  createCatalogoItem: async (tipo, nombre) => {
+    const item = await catalogosService.create(tipo, nombre)
+    await get().fetchCatalogo(tipo)
+    return item
   },
-  removePregunta: async (cargoId, preguntaId) => {
-    await cargosService.removePregunta(preguntaId)
-    await get().fetchPreguntas(cargoId)
+  updateCatalogoItem: async (tipo, id, data) => {
+    await catalogosService.update(tipo, id, data)
+    await get().fetchCatalogo(tipo)
+    // El nombre o la clasificación mostrados en las tarjetas vienen del catálogo.
+    await get().fetchCargos()
+  },
+  deleteCatalogoItem: async (tipo, id) => {
+    await catalogosService.remove(tipo, id)
+    await get().fetchCatalogo(tipo)
   },
 
   fetchVacantes: async () => set({ vacantes: await vacantesService.list() }),
@@ -97,17 +138,46 @@ export const useDataStore = create<DataState>((set, get) => ({
     set((s) => ({ vacantes: [vacante, ...s.vacantes] }))
     return vacante
   },
-  publishLinkedIn: async (id) => {
-    await vacantesService.publishLinkedIn(id)
+  updateVacante: async (id, data) => {
+    const vacante = await vacantesService.update(id, data)
+    set((s) => ({ vacantes: s.vacantes.map((v) => (v.id === id ? vacante : v)) }))
+    return vacante
+  },
+  toggleActivaVacante: async (id) => {
+    const vacante = await vacantesService.toggleActiva(id)
+    set((s) => ({ vacantes: s.vacantes.map((v) => (v.id === id ? vacante : v)) }))
+  },
+  abrirConvocatoria: async (vacanteId, data) => {
+    await vacantesService.abrirConvocatoria(vacanteId, data)
     await get().fetchVacantes()
   },
-  shareWhatsApp: async (id) => {
-    const { whatsapp_url } = await vacantesService.shareWhatsApp(id)
+  // Las acciones sobre una convocatoria devuelven la convocatoria, no la vacante, así
+  // que se vuelve a pedir la lista: es lo que mantiene a `convocatoria_actual` al día.
+  actualizarConvocatoria: async (convocatoriaId, data) => {
+    await convocatoriasService.update(convocatoriaId, data)
+    await get().fetchVacantes()
+  },
+  cambiarEstadoConvocatoria: async (convocatoriaId, estado) => {
+    await convocatoriasService.cambiarEstado(convocatoriaId, estado)
+    await get().fetchVacantes()
+  },
+  cambiarEstadoDelPost: async (convocatoriaId, estado) => {
+    await convocatoriasService.cambiarEstadoDelPost(convocatoriaId, estado)
+    await get().fetchVacantes()
+  },
+  publicarEnLinkedIn: async (convocatoriaId) => {
+    const resultado = await convocatoriasService.publicarEnLinkedIn(convocatoriaId)
+    await get().fetchVacantes()
+    return { simulado: resultado.simulado, mensaje: resultado.mensaje }
+  },
+  enviarInterno: async (convocatoriaId) => {
+    const { mensaje } = await convocatoriasService.enviarInterno(convocatoriaId)
+    await get().fetchVacantes()
+    return mensaje
+  },
+  shareWhatsApp: async (convocatoriaId) => {
+    const { whatsapp_url } = await convocatoriasService.shareWhatsApp(convocatoriaId)
     return whatsapp_url
-  },
-  cerrarVacante: async (id) => {
-    await vacantesService.cerrar(id)
-    await get().fetchVacantes()
   },
 
   fetchPostulaciones: async (filters) => set({ postulaciones: await postulacionesService.list(filters) }),

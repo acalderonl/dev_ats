@@ -20,6 +20,10 @@ class PostulacionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    # A qué convocatoria se postuló. `vacante_id` se deriva de ella y se mantiene
+    # porque el pipeline agrupa por vacante, no por ronda.
+    convocatoria_id: UUID
+    convocatoria_numero: int
     vacante_id: UUID
     postulante_id: UUID
     respuestas_filtro: dict | None
@@ -35,9 +39,12 @@ class PostulacionOut(BaseModel):
 
     @classmethod
     def from_orm_enriquecido(cls, postulacion) -> "PostulacionOut":
+        convocatoria = postulacion.convocatoria
         return cls(
             id=postulacion.id,
-            vacante_id=postulacion.vacante_id,
+            convocatoria_id=postulacion.convocatoria_id,
+            convocatoria_numero=convocatoria.numero,
+            vacante_id=convocatoria.vacante_id,
             postulante_id=postulacion.postulante_id,
             respuestas_filtro=postulacion.respuestas_filtro,
             autorizado_por=postulacion.autorizado_por,
@@ -48,7 +55,7 @@ class PostulacionOut(BaseModel):
             creado_en=postulacion.creado_en,
             postulante_nombres=postulacion.postulante.nombres,
             postulante_apellidos=postulacion.postulante.apellidos,
-            vacante_titulo=postulacion.vacante.titulo,
+            vacante_titulo=convocatoria.vacante.titulo,
         )
 
 

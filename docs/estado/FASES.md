@@ -41,23 +41,28 @@ Sin esto, ninguna fase posterior se puede dar por buena: no hay forma de saber s
 
 | Fase | Qué | Terminada cuando | Estado |
 |---|---|---|---|
-| **T.1** | Correr la suite por primera vez | `pytest` en verde y el número de pruebas anotado en la bitácora | **en curso** |
+| **T.1** | Correr la suite por primera vez | `pytest` en verde y el número de pruebas anotado en la bitácora | ✅ **hecha** (2026-10-01, 32 pruebas) |
+| **T.1B** | Las pruebas no tocan la base de desarrollo | Corren contra `ats_test_db`, construida desde las migraciones; control positivo de fuga cero | ✅ **hecha** (2026-10-01) |
 | **T.2** | Validar las pruebas por mutación | Cada prueba cae al reintroducir su defecto; el código queda idéntico (comprobado por hash) | pendiente |
-| **T.3** | Lint y type check | `black`, `flake8` y `tsc --noEmit` salen con código 0 | pendiente |
+| **T.3** | Lint y type check | `black`, `flake8` y `tsc --noEmit` salen con código 0 | 🟡 pasan hoy, falta dejarlo automático (ver T.4) |
 | **T.4** | CI en GitHub Actions | Un push abre el workflow y sale verde en GitHub, no solo en local | pendiente |
 
 # Etapa 2 — Bloqueantes de seguridad
 
-**Verificado en el código el 2026-10-01.** Nada de esta etapa es una precaución teórica: son cuatro
-puertas abiertas que hoy existen, y el repo es **público**. Mientras esta etapa no esté cerrada, el
-sistema no puede salir a internet.
+**Verificado en el código el 2026-10-01.** Nada de esta etapa es una precaución teórica: eran cuatro
+puertas abiertas que existían de verdad, y el repo es **público**. Mientras esta etapa no esté
+cerrada, el sistema no puede salir a internet.
+
+> **S.1 se cerró el 2026-10-12**, y no por disciplina: ese mismo día se construyó el guardado de
+> credenciales de terceros (LinkedIn, correo) en la base. Hacerlo con una clave de firma publicada
+> habría sido regalar esos secretos. De `SECRET_KEY` se deriva ahora su cifrado.
 
 | Fase | Qué | Terminada cuando | Estado |
 |---|---|---|---|
-| **S.1** | Secretos fuera del código | `SECRET_KEY` no tiene valor por defecto: si falta, la app **no arranca**. El valor de producción se genera aparte y nunca se sube. | pendiente |
-| **S.2** | El seed no crea usuarios demo fuera de desarrollo | Con `ENTORNO=produccion` el arranque no crea ninguna cuenta de demo; con prueba de los dos casos. | pendiente |
-| **S.3** | Validar los archivos que llegan | Tamaño máximo y tipo real comprobado (no solo la extensión); un archivo enorme o disfrazado se rechaza con 413/415. | pendiente |
-| **S.4** | Límite de peticiones en el portal público | Postular y analizar CV tienen límite por IP; con prueba de que el límite se aplica. | pendiente |
+| **S.1** | Secretos fuera del código | `SECRET_KEY` no tiene valor por defecto: si falta, la app **no arranca**. El valor de producción se genera aparte y nunca se sube. | ✅ **hecha** (2026-10-12) |
+| **S.2** | El seed no crea usuarios demo fuera de desarrollo | Con `ENTORNO=produccion` el arranque no crea ninguna cuenta de demo; con prueba de los dos casos. | ✅ **hecha** (2026-10-20). Verificado levantando la imagen de producción contra una base limpia: solo existe el admin de las variables, y `admin@atsdemo.com` / `Demo1234!` devuelve 401 |
+| **S.3** | Validar los archivos que llegan | Tamaño máximo y tipo real comprobado (no solo la extensión); un archivo enorme o disfrazado se rechaza con 413/415. | ✅ **hecha**: la imagen del post el 2026-10-12 y el CV el 2026-10-14 (15 MB, comprobado antes de leerlo) |
+| **S.4** | Límite de peticiones en el portal público | Postular y analizar CV tienen límite por IP; con prueba de que el límite se aplica. | ✅ **hecha** (2026-10-20). Por IP, leyendo `X-Forwarded-For`; 5 lecturas de CV cada 10 min, porque cada una cuesta dinero en la API de Claude |
 | **S.5** | Datos personales: conservar y borrar | Se puede borrar por completo a un candidato que lo pida, y está escrito cuánto tiempo se guardan los datos. | pendiente |
 
 **Por qué cada una (lo que hoy pasa de verdad):**
@@ -82,9 +87,10 @@ información perdida que no se recupera.
 
 | Fase | Qué | Terminada cuando | Estado |
 |---|---|---|---|
-| **M2.1** | Guardar el CV de verdad | El archivo queda guardado y se puede descargar desde la ficha del candidato. Hoy `cv_documento_url` guarda el texto `pendiente-de-almacenamiento`: **el CV se lee, se analiza y se tira**. | pendiente |
-| **M1.1** | Subir el documento de la vacante | El `.pdf`/`.docx` se guarda y se puede volver a descargar (hoy el campo del formulario no sube nada). | pendiente |
-| **T.6** | Build de producción verificado | La imagen construida desde cero arranca y responde, no el contenedor de desarrollo con recarga en caliente. | pendiente |
+| **M2.1** | Guardar el CV de verdad | **Hecha el 2026-10-28.** `POST /public/leer-cv` guarda el archivo en la misma subida y devuelve su URL; la foto del candidato igual. Van a `media_data/postulantes/`, que **no** sirve la ruta pública sin autenticación. Falta que la ficha del candidato ofrezca la descarga en la interfaz. | hecha |
+| **M1.1** | Subir el documento de la vacante | El `.pdf`/`.docx` se guarda y se puede volver a descargar (hoy el campo del formulario no sube nada). Mismo camino que M2.1. | pendiente |
+| **M1.6** | Publicar el post a la hora programada | Llegada la fecha de `post_programado_para`, el post sale **solo**. Hoy la fecha se guarda y no la ejecuta nadie: hay que pulsar el botón, y la pantalla lo advierte. Necesita un proceso aparte (APScheduler en el propio backend es lo más barato; Docker tiene 3,7 GB para todo). | pendiente (nueva, 2026-10-12) |
+| **T.6** | Build de producción verificado | La imagen construida desde cero arranca y responde, no el contenedor de desarrollo con recarga en caliente. | ✅ **hecha** (2026-10-20). Nunca se había ejecutado: faltaba `@types/node` y no existía `package-lock.json`. Ahora las dos imágenes se construyen, arrancan y responden, verificado con un ensayo completo en local  |
 
 # Etapa 4 — Lo que el sistema promete y no cumple
 
@@ -95,6 +101,8 @@ Con candidatos reales, la peor es la primera: un candidato descartado podría se
 |---|---|---|---|
 | **M2.2** | Preguntas eliminatorias que de verdad descartan | Una respuesta que incumple una pregunta *knockout* descarta la postulación; con prueba de los dos casos (cumple / no cumple). Hoy las respuestas se guardan pero no filtran nada. | pendiente |
 | **M7.1** | Guardas de ruta en el frontend | Entrar por URL a una sección sin permiso redirige (hoy solo se oculta el menú; el backend sí protege). | pendiente |
+| **M7.2** | El menú y los botones, por permisos | El menú lateral se pinta desde `/users/yo/permisos` y no desde el rol, y los botones de cada módulo se ocultan según el permiso. **Hoy las casillas de permisos de los otros módulos no se notan en la interfaz.** | pendiente (nueva, 2026-10-16) |
+| **M7.3** | Migrar los 33 endpoints a `require_permission` | Ningún endpoint decide por nombre de rol. Hasta entonces los tres roles del sistema no se pueden renombrar, porque el código los nombra. Se hace módulo a módulo, a medida que se cierran. | pendiente (nueva, 2026-10-16) |
 | **M4.1** | Exportar de verdad | Descarga un CSV con los contactos filtrados (hoy el botón solo muestra un aviso). | pendiente |
 | **M4.2** | Etiquetas | Se pueden etiquetar candidatos y filtrar por etiqueta (hoy el botón solo muestra un aviso). | pendiente |
 | **M5.1** | Scorecard consolidado | El promedio por candidato se ve en la interfaz (`evaluation_service.promedio_puntaje` ya existe y nadie lo llama). | pendiente |
@@ -104,7 +112,7 @@ Con candidatos reales, la peor es la primera: un candidato descartado podría se
 
 | Fase | Qué | Terminada cuando | Estado |
 |---|---|---|---|
-| **D.1** | Desplegar en un servidor | La aplicación responde por HTTPS en un dominio, con sus variables de entorno propias. | pendiente |
+| **D.1** | Desplegar en un servidor | La aplicación responde por HTTPS en un dominio, con sus variables de entorno propias. | 🟡 **preparado** (2026-10-20): `render.yaml`, Dockerfiles de producción y `docs/DESPLIEGUE.md`. Falta que el dueño cree la cuenta y conecte el repositorio  |
 | **D.2** | Copias de seguridad | Hay copia automática de la base y **se ha probado restaurar una** (una copia sin restaurar probada no es una copia). | pendiente |
 | **D.3** | Registro y vigilancia | Los errores quedan registrados y se puede saber si el sistema está caído. | pendiente |
 | **M3.1** | Auditoría de movimientos | Cada cambio de etapa guarda quién, cuándo y desde dónde. Con gente real decidiendo sobre candidatos reales, hace falta rastro. | pendiente |
@@ -125,6 +133,8 @@ flexible: se elige por lo que haga falta en ese momento.
 | **M1.2** | Editar y cerrar vacantes sin que cambie el slug | Vacantes |
 | **M1.3** | Definir las opciones de una pregunta de selección | Vacantes |
 | **M1.4** | LinkedIn real con credenciales | Vacantes |
+| **M1.5** | Devolver la gestión de preguntas filtro: se quitó de Cargos el 2026-10-02 y hoy **no hay forma de crearlas** desde la aplicación | Vacantes |
+| **M2.5** | Traer los títulos verificados del candidato desde EcuadorAPI por cédula, en vez de fiarse del parser del CV. Necesita API key de pago y consentimiento del candidato | Portal |
 | **M5.2** | Adjuntar documentos a una evaluación | Evaluaciones |
 | **M5.3** | Confidencialidad por rol probada (403, no solo ocultar el botón) | Evaluaciones |
 | **M2.3** | Medir el acierto del parser contra CVs reales y mejorarlo | Portal |
@@ -134,12 +144,21 @@ flexible: se elige por lo que haga falta en ese momento.
 
 ---
 
+## Decisiones ya tomadas
+
+- **2026-10-01 · Destino: producción real**, cimientos primero, los 7 módulos importan. De ahí salen
+  las 6 etapas y su orden.
+- **2026-10-02 · Educación formal con catálogos propios**, no con EcuadorAPI: esa API consulta los
+  títulos de UNA persona por su cédula ("qué estudió y dónde"), no tiene catálogos de niveles ni
+  áreas, cobra por consulta y puede pedir CAPTCHA. Su sitio real es el portal del candidato (M2.5).
+- **2026-10-02 · Requerido y deseado son excluyentes** en las competencias de un cargo.
+
 ## Decisiones pendientes del dueño
 
 - **¿El repo sigue público?** No es un problema en sí (el código abierto es legítimo), pero con
   producción real obliga a que la etapa 2 esté cerrada antes de desplegar. Si prefieres, se puede pasar
   a privado en cualquier momento.
-- **¿Dónde se despliega?** D.1 no se puede detallar sin saberlo (servidor propio, un servicio en la nube).
+- **¿Dónde se despliega?** ✅ Decidido el 2026-10-20: Render o Railway, como entorno de prueba para que otra persona siga el avance. Ver `docs/DESPLIEGUE.md`.
 - **¿Dónde se guardan los CVs?** M2.1 cambia bastante según sea disco del servidor o almacenamiento
   de objetos tipo S3/MinIO.
 

@@ -1,67 +1,83 @@
-from datetime import datetime, timedelta, timezone
+def test_crear_vacante_genera_slug_unico(client, unique_suffix, crear_cargo, crear_vacante):
+    """Dos vacantes del mismo cargo no pueden compartir URL pública."""
+    cargo_id = crear_cargo(unique_suffix)["id"]
+
+    primera = crear_vacante(cargo_id)
+    segunda = crear_vacante(cargo_id)
+
+    assert primera["slug"] != segunda["slug"]
 
 
-def _crear_cargo(client, reclutador_headers, unique_suffix) -> int:
-    response = client.post(
-        "/api/v1/cargos",
-        json={"nombre": f"Cargo Vac {unique_suffix}", "departamento": "Tech", "descripcion": "x"},
-        headers=reclutador_headers,
-    )
-    assert response.status_code == 201
-    return response.json()["id"]
+def test_el_titulo_se_copia_del_cargo(client, unique_suffix, crear_cargo, crear_vacante):
+    """El título ya no se escribe: sale del cargo, y lo que mande el cliente se ignora."""
+    cargo = crear_cargo(unique_suffix)
+
+    vacante = crear_vacante(cargo["id"], titulo="Título inventado por el cliente")
+
+    assert vacante["titulo"] == cargo["nombre"]
+    assert "inventado" not in vacante["slug"]
 
 
-def _crear_vacante(client, reclutador_headers, cargo_id: int, titulo: str, fecha_limite: datetime):
-    response = client.post(
-        "/api/v1/vacantes",
-        json={
-            "titulo": titulo,
-            "cargo_id": cargo_id,
-            "descripcion": "Descripción de prueba",
-            "fecha_limite": fecha_limite.isoformat(),
-        },
-        headers=reclutador_headers,
-    )
-    return response
-
-
-def test_crear_vacante_genera_slug_unico(client, reclutador_headers, unique_suffix):
-    cargo_id = _crear_cargo(client, reclutador_headers, unique_suffix)
-    titulo = f"Vacante Test {unique_suffix}"
-    fecha = datetime.now(timezone.utc) + timedelta(days=10)
-
-    r1 = _crear_vacante(client, reclutador_headers, cargo_id, titulo, fecha)
-    r2 = _crear_vacante(client, reclutador_headers, cargo_id, titulo, fecha)
-
-    assert r1.status_code == 201 and r2.status_code == 201
-    assert r1.json()["slug"] != r2.json()["slug"]
-
-
-def test_vacante_activa_es_visible_publicamente(client, reclutador_headers, unique_suffix):
-    cargo_id = _crear_cargo(client, reclutador_headers, unique_suffix)
-    fecha = datetime.now(timezone.utc) + timedelta(days=5)
-    vacante = _crear_vacante(client, reclutador_headers, cargo_id, f"Vacante Publica {unique_suffix}", fecha).json()
+def test_vacante_abierta_es_visible_publicamente(client, unique_suffix, crear_cargo, crear_vacante):
+    cargo_id = crear_cargo(unique_suffix)["id"]
+    vacante = crear_vacante(cargo_id)
 
     response = client.get(f"/api/v1/public/vacantes/{vacante['slug']}")
+
     assert response.status_code == 200
     assert response.json()["titulo"] == vacante["titulo"]
 
 
-def test_vacante_expirada_devuelve_410(client, reclutador_headers, unique_suffix):
-    cargo_id = _crear_cargo(client, reclutador_headers, unique_suffix)
-    fecha_pasada = datetime.now(timezone.utc) - timedelta(days=1)
-    vacante = _crear_vacante(client, reclutador_headers, cargo_id, f"Vacante Expirada {unique_suffix}", fecha_pasada).json()
+def test_vacante_en_borrador_no_es_visible(client, unique_suffix, crear_cargo, crear_vacante):
+    """Un borrador no se publica aunque alguien tenga el enlace."""
+    cargo_id = crear_cargo(unique_suffix)["id"]
+    vacante = crear_vacante(cargo_id, estado="borrador")
 
     response = client.get(f"/api/v1/public/vacantes/{vacante['slug']}")
+
     assert response.status_code == 410
 
 
-def test_postular_a_vacante_expirada_devuelve_410(client, reclutador_headers, unique_suffix):
-    cargo_id = _crear_cargo(client, reclutador_headers, unique_suffix)
-    fecha_pasada = datetime.now(timezone.utc) - timedelta(days=1)
-    vacante = _crear_vacante(
-        client, reclutador_headers, cargo_id, f"Vacante Expirada Postular {unique_suffix}", fecha_pasada
-    ).json()
+def test_vacante_interna_no_aparece_en_el_portal(client, unique_suffix, crear_cargo, crear_vacante):
+    """Interna significa interna: abierta, vigente, y aun así invisible fuera."""
+    cargo_id = crear_cargo(unique_suffix)["id"]
+    vacante = crear_vacante(
+        cargo_id,
+        visibilidad="interna",
+        destinatarios_internos=["persona@empresa.com"],
+    )
+
+    response = client.get(f"/api/v1/public/vacantes/{vacante['slug']}")
+
+    assert response.status_code == 404
+
+
+def test_vacante_mixta_si_aparece_en_el_portal(client, unique_suffix, crear_cargo, crear_vacante):
+    """Control positivo de la anterior: mixta sale fuera además de dentro."""
+    cargo_id = crear_cargo(unique_suffix)["id"]
+    vacante = crear_vacante(
+        cargo_id,
+        visibilidad="mixta",
+        destinatarios_internos=["persona@empresa.com"],
+    )
+
+    response = client.get(f"/api/v1/public/vacantes/{vacante['slug']}")
+
+    assert response.status_code == 200
+
+
+def test_vacante_expirada_devuelve_410(client, unique_suffix, crear_cargo, crear_vacante):
+    cargo_id = crear_cargo(unique_suffix)["id"]
+    vacante = crear_vacante(cargo_id, dias_de_plazo=-1)
+
+    response = client.get(f"/api/v1/public/vacantes/{vacante['slug']}")
+
+    assert response.status_code == 410
+
+
+def test_postular_a_vacante_expirada_devuelve_410(client, unique_suffix, crear_cargo, crear_vacante):
+    cargo_id = crear_cargo(unique_suffix)["id"]
+    vacante = crear_vacante(cargo_id, dias_de_plazo=-1)
 
     response = client.post(
         f"/api/v1/public/vacantes/{vacante['slug']}/postular",
@@ -70,6 +86,8 @@ def test_postular_a_vacante_expirada_devuelve_410(client, reclutador_headers, un
             "apellidos": "Pérez",
             "cedula": f"17{unique_suffix[:8]}",
             "email": "juan.perez@example.com",
+            "acepta_privacidad": True,
         },
     )
+
     assert response.status_code == 410

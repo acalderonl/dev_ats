@@ -15,9 +15,7 @@ def test_register_y_login(client, unique_suffix):
 
 
 def test_login_credenciales_invalidas(client):
-    response = client.post(
-        "/api/v1/auth/login", json={"email": "admin@atsdemo.com", "password": "clave-incorrecta"}
-    )
+    response = client.post("/api/v1/auth/login", json={"email": "admin@atsdemo.com", "password": "clave-incorrecta"})
     assert response.status_code == 401
 
 

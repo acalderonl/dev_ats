@@ -5,9 +5,7 @@ from app.models.evaluacion import Evaluacion
 
 
 def promedio_puntaje(db: Session, postulacion_id) -> float | None:
-    puntajes = db.scalars(
-        select(Evaluacion.puntaje).where(Evaluacion.postulacion_id == postulacion_id)
-    ).all()
+    puntajes = db.scalars(select(Evaluacion.puntaje).where(Evaluacion.postulacion_id == postulacion_id)).all()
     valores = [float(p) for p in puntajes if p is not None]
     if not valores:
         return None

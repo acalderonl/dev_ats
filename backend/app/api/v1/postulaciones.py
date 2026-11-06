@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_roles
+from app.models.convocatoria import Convocatoria
 from app.models.postulacion import Postulacion
 from app.models.usuario import Usuario
 from app.schemas.postulacion import PipelineStatusUpdate, PostulacionOut
@@ -22,9 +23,13 @@ def listar_postulaciones(
     db: Session = Depends(get_db),
     _: Usuario = Depends(get_current_user),
 ) -> list[PostulacionOut]:
-    query = select(Postulacion).options(selectinload(Postulacion.postulante), selectinload(Postulacion.vacante))
+    query = select(Postulacion).options(
+        selectinload(Postulacion.postulante),
+        selectinload(Postulacion.convocatoria).selectinload(Convocatoria.vacante),
+    )
+    # Se filtra por vacante, no por ronda: el pipeline mira el puesto entero.
     if vacante_id is not None:
-        query = query.where(Postulacion.vacante_id == vacante_id)
+        query = query.join(Postulacion.convocatoria).where(Convocatoria.vacante_id == vacante_id)
     if estado_pipeline is not None:
         query = query.where(Postulacion.estado_pipeline == estado_pipeline)
     postulaciones = db.scalars(query.order_by(Postulacion.creado_en.desc())).all()
@@ -34,7 +39,10 @@ def listar_postulaciones(
 def _get_postulacion_or_404(db: Session, postulacion_id: UUID) -> Postulacion:
     postulacion = db.scalar(
         select(Postulacion)
-        .options(selectinload(Postulacion.postulante), selectinload(Postulacion.vacante))
+        .options(
+            selectinload(Postulacion.postulante),
+            selectinload(Postulacion.convocatoria).selectinload(Convocatoria.vacante),
+        )
         .where(Postulacion.id == postulacion_id)
     )
     if postulacion is None:
