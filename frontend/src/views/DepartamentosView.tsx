@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Building2, Loader2, Pencil, Plus } from 'lucide-react'
+import { ArrowLeft, Building2, Loader2, Pencil, Plus, Power, PowerOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/common/Badge'
 import { Card } from '@/components/common/Card'
@@ -172,51 +172,66 @@ export function DepartamentosView() {
           </p>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {visibles.map((d) => (
-            <Card key={d.id} className="flex flex-col justify-between p-4">
-              <div>
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="flex items-center gap-2 font-medium text-slate-900">
-                    <Building2 size={16} className="shrink-0 text-slate-400" />
-                    {d.nombre}
-                  </h3>
-                  {d.es_sistema ? (
-                    <Badge tone="slate">Del sistema</Badge>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setAConfirmar(d)}
-                      title={d.activo ? 'Pulsa para desactivar' : 'Pulsa para reactivar'}
-                      className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
-                        d.activo
-                          ? 'bg-green-50 text-green-700 hover:bg-green-100'
-                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                      }`}
-                    >
-                      {d.activo ? 'Activo' : 'Inactivo'}
-                    </button>
-                  )}
-                </div>
-                {d.descripcion && <p className="mt-2 text-sm text-slate-600">{d.descripcion}</p>}
-                <p className="mt-3 text-xs text-slate-500">
-                  {d.cargos === 1 ? '1 cargo' : `${d.cargos} cargos`}
-                </p>
-              </div>
-              {!d.es_sistema && (
-                <div className="mt-4 flex justify-end border-t border-slate-100 pt-3">
-                  <button
-                    type="button"
-                    onClick={() => abrirEdicion(d)}
-                    className="flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-900"
-                  >
-                    <Pencil size={13} /> Editar
-                  </button>
-                </div>
-              )}
-            </Card>
-          ))}
-        </div>
+        // Lista, no tarjetas: a propósito distinta de Cargos. Son pocos registros y de
+        // una sola línea cada uno; una grilla de tarjetas repetiría un patrón pensado
+        // para fichas con contenido (actividades, competencias...) que aquí no hay.
+        <Card className="overflow-x-auto">
+          <table className="w-full min-w-[560px] text-left text-sm">
+            <thead className="border-b border-slate-100 bg-slate-50 text-xs uppercase text-slate-500">
+              <tr>
+                <th className="px-4 py-3">Nombre</th>
+                <th className="px-4 py-3">Cargos</th>
+                <th className="px-4 py-3">Estado</th>
+                <th className="px-4 py-3 text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibles.map((d) => (
+                <tr key={d.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
+                  <td className="px-4 py-3">
+                    <p className="flex items-center gap-2 font-medium text-slate-800">
+                      <Building2 size={15} className="shrink-0 text-slate-400" />
+                      {d.nombre}
+                    </p>
+                    {d.descripcion && <p className="mt-0.5 pl-[23px] text-xs text-slate-500">{d.descripcion}</p>}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">{d.cargos}</td>
+                  <td className="px-4 py-3">
+                    {d.es_sistema ? (
+                      <Badge tone="slate">Del sistema</Badge>
+                    ) : (
+                      <Badge tone={d.activo ? 'green' : 'slate'}>{d.activo ? 'Activo' : 'Inactivo'}</Badge>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {!d.es_sistema && (
+                      <div className="flex justify-end gap-1">
+                        <button
+                          onClick={() => abrirEdicion(d)}
+                          title="Editar"
+                          className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        <button
+                          onClick={() => setAConfirmar(d)}
+                          title={d.activo ? 'Desactivar' : 'Reactivar'}
+                          className={`rounded-md p-1.5 ${
+                            d.activo
+                              ? 'text-slate-400 hover:bg-red-50 hover:text-red-600'
+                              : 'text-brand-600 hover:bg-brand-50'
+                          }`}
+                        >
+                          {d.activo ? <PowerOff size={15} /> : <Power size={15} />}
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
       )}
 
       <Modal
